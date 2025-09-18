@@ -16,7 +16,8 @@ struct Person {
     SERIALIZE_MEMBER(name, age, weight, father, first_child, children)
 };
 
-TEST_CASE("Struct")
+template <typename TOut, typename TIn>
+void test_person()
 {
     auto john = std::shared_ptr<Person>(
         new Person{.name = "John", .age = 40, .weight = 80.8});
@@ -31,21 +32,15 @@ TEST_CASE("Struct")
     john->first_child = mike;
 
     std::stringstream ss;
-    {
-        OutArchive oar(ss);
-        oar(NVP(john));
-    }
-    SPDLOG_DEBUG("Serialized: {}", ss.str());
-
-    SPDLOG_DEBUG("{}", *john);
+    OutArchive oar{TOut(ss)};
+    oar(NVP(john));
+    oar.Flush();
 
     auto john1 = std::move(john);
-    {
-        InArchive iar(ss);
-        iar(NVP(john));
-    }
-    SPDLOG_DEBUG("{}", *john);
-    CHECK(john);
+    InArchive iar{TIn(ss)};
+    iar(NVP(john));
+
+    REQUIRE(john);
     CHECK(john->age == john1->age);
     CHECK(john->name == john1->name);
     CHECK_THAT(john->weight, WithinAbs(john1->weight, 0.0001));
@@ -54,4 +49,10 @@ TEST_CASE("Struct")
     CHECK(john->children[0] == john->first_child);
     CHECK(john->children[0]->name == mike->name);
     CHECK(john->children[1]->name == nike->name);
+}
+
+TEST_CASE("struct", "[struct]")
+{
+    test_person<JsonSerializer, JsonDeserializer>();
+    test_person<BinarySerializer, BinaryDeserializer>();
 }

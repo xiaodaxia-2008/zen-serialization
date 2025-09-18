@@ -30,11 +30,9 @@ class BinarySerializer : public BaseSerializer
     std::ostream &m_stream;
 
 public:
-    static constexpr bool is_binary = true;
-
     BinarySerializer(std::ostream &stream) : m_stream(stream) {}
 
-    bool IsBinary() const { return true; }
+    static constexpr bool IsBinary() { return true; }
 
     void operator()(const RangeSize &size) { (*this)(size.size); }
 
@@ -58,7 +56,7 @@ public:
         requires std::is_arithmetic_v<T>
     void operator()(const T &t)
     {
-        auto ptr = reinterpret_cast<const char *>(&t);
+        auto ptr = reinterpret_cast<const char *>(std::addressof(t));
         auto n = static_cast<std::streamsize>(sizeof(T));
         m_stream.write(ptr, n);
         if (!m_stream) {
@@ -76,7 +74,7 @@ public:
 
     BinaryDeserializer(std::istream &stream) : m_stream(stream) {}
 
-    bool IsBinary() const { return true; }
+    static constexpr bool IsBinary() { return true; }
 
     void operator()(RangeSize &size) { (*this)(size.size); }
 
@@ -85,8 +83,7 @@ public:
         uint64_t size;
         (*this)(size);
         str.resize(size);
-        // (*this)(std::span<char>(str));
-        m_stream.read(str.data(), size);
+        (*this)(std::span<char>(str));
     }
 
     void operator()(std::span<char> bytes)
@@ -102,7 +99,7 @@ public:
         requires std::is_arithmetic_v<T>
     void operator()(T &t)
     {
-        auto ptr = reinterpret_cast<char *>(&t);
+        auto ptr = reinterpret_cast<char *>(std::addressof(t));
         auto n = static_cast<std::streamsize>(sizeof(T));
         m_stream.read(ptr, n);
         if (!m_stream) {

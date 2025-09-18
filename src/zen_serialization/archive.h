@@ -13,6 +13,8 @@
 #include "json_serializer.h"
 #include "serializer.h"
 
+#include <iterator>
+
 namespace zen
 {
 class Scope
@@ -61,13 +63,21 @@ class OutArchive : public ArchiveBase
 public:
     using TSerializer = OutSerializer;
 
-    static constexpr bool is_input = false;
+    template <typename T>
+        requires std::is_constructible_v<OutSerializer, T>
+    OutArchive(T serializer) : m_serializer(std::move(serializer))
+    {
+    }
 
     OutArchive(OutSerializer serializer) : m_serializer(std::move(serializer))
     {
     }
 
     void Flush() { m_serializer.Flush(); }
+
+    bool IsBinary() const { return m_serializer.IsBinary(); }
+
+    static constexpr bool IsInput() { return false; }
 
     void operator()(auto &&item1, auto &&...items)
     {
@@ -104,7 +114,9 @@ private:
         } else if constexpr (requires(T item) { serialize(item); }) {
             serialize(item);
         } else {
-            static_assert(false, "Unsupported type");
+            static_assert(false,
+                          "Unsupported type, define free or member save/load "
+                          "function; or serialize function for it.");
         }
     }
 
@@ -217,12 +229,20 @@ class InArchive : public ArchiveBase
 public:
     using TSerializer = InDeserializer;
 
-    constexpr static bool is_input = true;
+    template <typename T>
+        requires std::is_constructible_v<InDeserializer, T>
+    InArchive(T deserializer) : m_serializer(std::move(deserializer))
+    {
+    }
 
     InArchive(InDeserializer deserializer)
         : m_serializer(std::move(deserializer))
     {
     }
+
+    bool IsBinary() const { return m_serializer.IsBinary(); }
+
+    static constexpr bool IsInput() { return true; }
 
     void operator()(auto &&item1, auto &&...items)
     {
@@ -318,7 +338,7 @@ private:
             }
         }
 
-        // for really range types, we need to start NewJsonScope first to get
+        // for really range types, we need to start NewObjectScope first to get
         // the current array size
         NewObjectScope<true, TSerializer> scope(m_serializer);
 
@@ -328,6 +348,7 @@ private:
         if constexpr (requires { items.resize(n); }) {
             items.resize(n);
         }
+
         if constexpr (requires { typename Rng::mapped_type; }) {
             for (std::size_t i = 0; i < n; ++i) {
                 typename std::pair<typename Rng::key_type,
@@ -336,10 +357,26 @@ private:
                 trySerialize(item);
                 items.emplace(std::move(item));
             }
-        } else {
+        } else if constexpr (requires {
+                                 requires !std::output_iterator<
+                                     typename Rng::iterator, T>;
+                                 items.emplace(std::declval<T>());
+                             }) {
+            for (std::size_t i = 0; i < n; ++i) {
+                typename Rng::value_type item;
+                trySerialize(item);
+                items.emplace(std::move(item));
+            }
+        } else if constexpr (requires {
+                                 requires std::output_iterator<
+                                     typename Rng::iterator, T>;
+                             }) {
             for (auto &i : items) {
                 trySerialize(i);
             }
+        } else {
+            static_assert(false, "this range type is not supported, please "
+                                 "provide a specific serialize function");
         }
     }
 
@@ -420,43 +457,6 @@ private:
 };
 } // namespace zen
 
-// namespace zen
-// {
-// class ZEN_SERIALIZATION_EXPORT OutArchive
-// {
-// public:
-//     std::variant<GeneralOutArchive<JsonSerializer>,
-//                  GeneralOutArchive<BinarySerializer>>
-//         archive;
-
-//     void Flush()
-//     {
-//         std::visit([](auto &ar) { ar.Flush(); }, archive);
-//     }
-
-//     void operator()(auto &&...args)
-//     {
-//         std::visit(
-//             [&](auto &a) { return a(std::forward<decltype(args)>(args)...);
-//             }, archive);
-//     }
-// };
-
-// class ZEN_SERIALIZATION_EXPORT InArchive
-// {
-// public:
-//     std::variant<GeneralInArchive<JsonDeserializer>,
-//                  GeneralInArchive<BinaryDeserializer>>
-//         archive;
-
-//     void operator()(auto &&...args)
-//     {
-//         std::visit(
-//             [&](auto &a) { return a(std::forward<decltype(args)>(args)...);
-//             }, archive);
-//     }
-// };
-// } // namespace zen
 /////////// variant serialization ////////////////
 
 #include <variant>
@@ -508,15 +508,15 @@ namespace zen
 namespace detail
 {
 template <typename T>
-concept is_stack = requires(T t) {
-    t.top();
-    t.pop();
-    t.push(t.top());
+concept have_inner_container = requires(T t) {
+    // stack or queue
     typename T::container_type;
+    // not a range
+    requires !std::ranges::range<T>;
 };
 
 //! Allows access to the protected container in stack
-template <is_stack S>
+template <have_inner_container S>
 typename S::container_type const &container(const S &stack)
 {
     struct H : public S {
@@ -530,13 +530,13 @@ typename S::container_type const &container(const S &stack)
 }
 } // namespace detail
 
-template <detail::is_stack S>
+template <detail::have_inner_container S>
 void save(const S &s, OutArchive &ar)
 {
     ar(make_nvp("container", detail::container(s)));
 }
 
-template <detail::is_stack S>
+template <detail::have_inner_container S>
 void load(S &s, InArchive &ar)
 {
     typename S::container_type c;
@@ -558,20 +558,6 @@ void load(std::pair<T1, T2> &pair, InArchive &ar)
 {
     ar(make_nvp("first", pair.first), make_nvp("second", pair.second));
 }
-
-// set deserializer
-template <typename T, typename Comp, typename Alloc>
-void load(std::set<T, Comp, Alloc> &set, InArchive &ar)
-{
-    RangeSize range_size(0);
-    ar(range_size);
-    for (std::size_t i = 0; i < range_size.size; ++i) {
-        T value;
-        ar(value);
-        set.insert(std::move(value));
-    }
-}
-
 } // namespace zen
 
 namespace zen

@@ -2,6 +2,9 @@
 #include <fmt/ranges.h>
 #include <stacktrace>
 #include <string>
+
+#define ZEN_SERIALIZATION_OUT_SERIALIZER zen::BinarySerializer
+#define ZEN_SERIALIZATION_IN_DESERIALIZER zen::BinaryDeserializer
 #include <zen_serialization/archive.h>
 
 struct Person {
@@ -18,7 +21,7 @@ struct fmt::formatter<Person> {
 
     auto format(const Person &p, format_context &ctx) const
     {
-        return format_to(ctx.out(), "Person: {{name: {}, age: {}, weight: {}",
+        return format_to(ctx.out(), "Person: {{name: {}, age: {}, weight: {}}}",
                          p.name, p.age, p.weight);
     }
 };
@@ -30,7 +33,7 @@ void test_str()
 {
     std::string name = "JikeMa";
     std::stringstream ss;
-    OutArchive oar{OutSerializer{TOut(ss)}};
+    OutArchive oar{TOut(ss)};
     oar(NVP(name));
     oar.Flush();
     auto str = ss.str();
@@ -40,7 +43,7 @@ void test_str()
 
     name.clear();
 
-    InArchive iar{InDeserializer{TIn(ss)}};
+    InArchive iar{TIn(ss)};
     iar(NVP(name));
     SPDLOG_INFO("{}", name);
 }
@@ -52,7 +55,7 @@ void test()
         new Person{.name = "John", .age = 40, .weight = 80.8});
 
     std::stringstream ss;
-    OutArchive oar{OutSerializer{TOut(ss)}};
+    OutArchive oar{TOut(ss)};
     oar(NVP(john));
     oar.Flush();
 
@@ -63,7 +66,7 @@ void test()
     SPDLOG_INFO("{}", *john);
 
     john.reset();
-    InArchive iar{InDeserializer{TIn(ss)}};
+    InArchive iar{TIn(ss)};
     iar(NVP(john));
     SPDLOG_INFO("{}", *john);
 }
@@ -83,7 +86,7 @@ int main()
     });
 
     // test<JsonSerializer, JsonDeserializer>();
-    // test<BinarySerializer, BinaryDeserializer>();
+    test<BinarySerializer, BinaryDeserializer>();
     // test_str<JsonSerializer, JsonDeserializer>();
     test_str<BinarySerializer, BinaryDeserializer>();
 }

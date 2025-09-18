@@ -26,23 +26,29 @@ void test_shared_ptr()
     SPDLOG_INFO("node3: {}", *node3);
 
     std::stringstream ss;
-    OutArchive oar{OutSerializer{TOut{ss}}};
-    oar(NVP(node1));
+    OutArchive oar{TOut{ss}};
+    oar(make_nvp("scene", node1));
     oar.Flush();
 
     auto data = ss.str();
-    SPDLOG_INFO("bytes size: {}\n{}", data.size(), data);
+    if (oar.IsBinary()) {
+        SPDLOG_INFO("data size: {}\n{}", data.size(), std::span(data));
+    } else {
+        SPDLOG_INFO("data size: {}\n{}", data.size(), data);
+    }
 
-    InArchive iar{InDeserializer{TIn(ss)}};
-    node1.reset();
-    iar(NVP(node1));
-    SPDLOG_INFO("node1: {}", *node1);
+    std::shared_ptr<BaseNode> node11, node22, node33;
+    InArchive iar{TIn(ss)};
+    iar(make_nvp("scene", node11));
+    SPDLOG_INFO("{}", *node1);
+    SPDLOG_INFO("{}", *node11);
+    ZEN_EUNSURE(fmt::format("{}", *node1) == fmt::format("{}", *node11));
 
-    node2 = node1->GetChild(0);
-    SPDLOG_INFO("node2: {}", *node2);
+    node22 = node11->GetChild(0);
+    ZEN_EUNSURE(fmt::format("{}", *node2) == fmt::format("{}", *node22));
 
-    node3 = node2->GetChild(0);
-    SPDLOG_INFO("node3: {}", *node3);
+    node33 = node22->GetChild(0);
+    ZEN_EUNSURE(fmt::format("{}", *node3) == fmt::format("{}", *node33));
 }
 
 namespace fs = std::filesystem;
@@ -61,7 +67,7 @@ int main()
     });
 
     spdlog::set_level(spdlog::level::debug);
-    // test_shared_ptr<JsonSerializer, JsonDeserializer>();
+    test_shared_ptr<JsonSerializer, JsonDeserializer>();
     test_shared_ptr<BinarySerializer, BinaryDeserializer>();
 
     return 0;

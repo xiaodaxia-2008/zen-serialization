@@ -66,6 +66,15 @@ struct Serializer {
 };
 } // namespace detail
 
+#ifndef ZEN_SERIALIZATION_OUT_SERIALIZER
 using OutSerializer = detail::Serializer<JsonSerializer, BinarySerializer>;
+#else
+using OutSerializer = detail::Serializer<ZEN_SERIALIZATION_OUT_SERIALIZER>;
+#endif
+
+#ifndef ZEN_SERIALIZATION_IN_DESERIALIZER
 using InDeserializer = detail::Serializer<JsonDeserializer, BinaryDeserializer>;
+#else
+using InDeserializer = detail::Serializer<ZEN_SERIALIZATION_IN_SERIALIZER>;
+#endif
 } // namespace zen

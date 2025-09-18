@@ -59,6 +59,11 @@
     SPDLOG_CRITICAL(message);                                                  \
     throw std::runtime_error(message);
 
+#define ZEN_EUNSURE(condition)                                                 \
+    if (!(condition)) {                                                        \
+        ZEN_THROW("assertion failed: " #condition);                            \
+    }
+
 namespace zen
 {
 

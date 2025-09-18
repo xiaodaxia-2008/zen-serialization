@@ -3,27 +3,26 @@
 
 using namespace zen;
 
-enum class Alphabet { A, B, C };
+enum class Enum { A, B, C };
 
+template <typename TOut, typename TIn>
+void test_enum()
+{
+    const Enum value = Enum::B;
+
+    std::stringstream ss;
+    OutArchive oar{TOut(ss)};
+    oar(make_nvp("value", value));
+    oar.Flush();
+
+    Enum value1;
+    InArchive iar{TIn(ss)};
+    iar(make_nvp("value", value1));
+    CHECK(value == value1);
+}
 
 TEST_CASE("enum", "[enum]")
 {
-    Alphabet a = Alphabet::B;
-
-    std::stringstream ss;
-
-    {
-        OutArchive oar(ss);
-        oar(make_nvp("a", a));
-    }
-
-    SPDLOG_INFO("serialized: {}", ss.str());
-
-    Alphabet a1;
-    {
-        InArchive iar(ss);
-        iar(make_nvp("a", a1));
-    }
-
-    CHECK(a == a1);
+    test_enum<JsonSerializer, JsonDeserializer>();
+    test_enum<BinarySerializer, BinaryDeserializer>();
 }
