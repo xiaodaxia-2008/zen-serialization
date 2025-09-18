@@ -9,6 +9,10 @@
 #include <zen_serialization/archive.h>
 #include <zen_serialization/archive_base.h>
 #include <zen_serialization/base64.h>
+#include <zen_serialization/binary_serializer.h>
+#include <zen_serialization/json_serializer.h>
+#include <zen_serialization/range_size.h>
+#include <zen_serialization/serializer.h>
 
 namespace zen
 {

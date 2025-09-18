@@ -1,4 +1,5 @@
 #include <fmt/ostream.h>
+#include <fmt/ranges.h>
 #include <stacktrace>
 #include <string>
 #include <zen_serialization/archive.h>
@@ -7,13 +8,8 @@ struct Person {
     std::string name{""};
     int age{0};
     double weight{0};
-    std::weak_ptr<Person> father;
 
-    std::vector<std::shared_ptr<Person>> children;
-    std::shared_ptr<Person> first_child;
-
-    SERIALIZE_MEMBER(name, age, weight, father, first_child, children)
-    // SERIALIZE_MEMBER(name, age);
+    SERIALIZE_MEMBER(name, age, weight)
 };
 
 template <>
@@ -22,17 +18,32 @@ struct fmt::formatter<Person> {
 
     auto format(const Person &p, format_context &ctx) const
     {
-        return format_to(ctx.out(),
-                         "Person: {{name: {}, age: {}, weight: {}, father: {}, "
-                         "first_child: {}, children: {}}}",
-                         p.name, p.age, p.weight,
-                         p.father.lock() ? p.father.lock()->name : "null",
-                         p.first_child ? p.first_child->name : "null",
-                         p.children.size());
+        return format_to(ctx.out(), "Person: {{name: {}, age: {}, weight: {}",
+                         p.name, p.age, p.weight);
     }
 };
 
 using namespace zen;
+
+template <typename TOut, typename TIn>
+void test_str()
+{
+    std::string name = "JikeMa";
+    std::stringstream ss;
+    OutArchive oar{OutSerializer{TOut(ss)}};
+    oar(NVP(name));
+    oar.Flush();
+    auto str = ss.str();
+    std::vector<char> data{str.begin(), str.end()};
+    SPDLOG_INFO("Serialized: {}", data);
+    SPDLOG_INFO("{}", name);
+
+    name.clear();
+
+    InArchive iar{InDeserializer{TIn(ss)}};
+    iar(NVP(name));
+    SPDLOG_INFO("{}", name);
+}
 
 template <typename TOut, typename TIn>
 void test()
@@ -40,20 +51,14 @@ void test()
     auto john = std::shared_ptr<Person>(
         new Person{.name = "John", .age = 40, .weight = 80.8});
 
-    auto mike = std::shared_ptr<Person>(
-        new Person{.name = "Mike", .age = 22, .weight = 56.8, .father = john});
-    auto nike = std::shared_ptr<Person>(
-        new Person{.name = "Nike", .age = 20, .weight = 58.8, .father = john});
-
-    john->children.push_back(mike);
-    john->children.push_back(nike);
-    john->first_child = mike;
-
     std::stringstream ss;
     OutArchive oar{OutSerializer{TOut(ss)}};
     oar(NVP(john));
     oar.Flush();
-    SPDLOG_INFO("Serialized: {}", ss.str());
+
+    auto str = ss.str();
+    std::vector<char> data{str.begin(), str.end()};
+    SPDLOG_INFO("Serialized: {}", data);
 
     SPDLOG_INFO("{}", *john);
 
@@ -78,5 +83,7 @@ int main()
     });
 
     // test<JsonSerializer, JsonDeserializer>();
-    test<BinarySerializer, BinaryDeserializer>();
+    // test<BinarySerializer, BinaryDeserializer>();
+    // test_str<JsonSerializer, JsonDeserializer>();
+    test_str<BinarySerializer, BinaryDeserializer>();
 }

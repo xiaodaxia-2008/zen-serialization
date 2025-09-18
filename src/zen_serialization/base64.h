@@ -19,7 +19,7 @@ static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                         "abcdefghijklmnopqrstuvwxyz"
                                         "0123456789+/";
 
-inline std::string base64_encode(std::span<const std::uint8_t> input)
+inline std::string base64_encode(std::span<const char> input)
 {
     std::string output;
     int val = 0;
@@ -41,14 +41,14 @@ inline std::string base64_encode(std::span<const std::uint8_t> input)
     return output;
 }
 
-inline std::vector<std::uint8_t> base64_decode(std::string_view input)
+inline std::vector<char> base64_decode(std::string_view input)
 {
     std::vector<int> T(256, -1);
     for (int i = 0; i < 64; i++) {
         T[base64_chars[i]] = i;
     }
 
-    std::vector<std::uint8_t> output;
+    std::vector<char> output;
     int val = 0;
     int valb = -8;
     for (unsigned char c : input) {

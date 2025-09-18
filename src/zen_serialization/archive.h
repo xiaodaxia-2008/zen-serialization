@@ -9,14 +9,12 @@
 #pragma once
 #include "archive_base.h"
 #include "base64.h"
+#include "binary_serializer.h"
+#include "json_serializer.h"
+#include "serializer.h"
 
 namespace zen
 {
-struct RangeSize {
-    explicit RangeSize(std::size_t size) : size(size) {}
-    std::size_t size;
-};
-
 class Scope
 {
     std::function<void()> f;
@@ -32,192 +30,19 @@ public:
     }
 };
 
-class JsonSerializer
-{
-    std::ostream &m_stream;
-    std::vector<nlohmann::json> m_objects;
-    std::size_t m_idx = 0;
-    std::vector<std::string> m_next_names;
-
-public:
-    static constexpr bool is_binary = false;
-
-    JsonSerializer(std::ostream &stream) : m_stream(stream)
-    {
-        m_objects.emplace_back(nlohmann::json::object());
-    }
-
-    void Flush(int indent = 4) { m_stream << Json().dump(indent); }
-
-    ~JsonSerializer() { Flush(); }
-
-    const nlohmann::json &Json() const
-    {
-        assert(m_objects.size() == 1);
-        return m_objects.back();
-    }
-
-    void SetNextName(std::string_view name) { m_next_names.emplace_back(name); }
-
-    std::string NextName()
-    {
-        if (m_next_names.empty()) {
-            return std::format("value{}", m_idx++);
-        } else {
-            auto name = std::move(m_next_names.back());
-            m_next_names.pop_back();
-            if (name.empty()) {
-                return std::format("value{}", m_idx++);
-            } else {
-                return std::move(name);
-            }
-        }
-    }
-
-    void NewObject() { m_objects.emplace_back(nlohmann::json::object()); }
-
-    void FinishObject()
-    {
-        auto current = std::move(m_objects.back());
-        m_objects.pop_back();
-        auto &parent = m_objects.back();
-        if (parent.is_array()) {
-            parent.push_back(std::move(current));
-        } else {
-            const auto &key = NextName();
-            parent[key] = std::move(current);
-        }
-    }
-
-    void NewArray() { m_objects.emplace_back(nlohmann::json::array()); }
-
-    void operator()(const RangeSize &size) {}
-
-    void operator()(std::span<const std::uint8_t> bytes)
-    {
-        (*this)(base64_encode(bytes));
-    }
-
-    template <typename T>
-        requires std::is_arithmetic_v<T> || std::is_same_v<T, std::string>
-    void operator()(const T &t)
-    {
-        auto &current = m_objects.back();
-        if (current.is_object()) {
-            current[NextName()] = t;
-        } else if (current.is_array()) {
-            current.push_back(t);
-        } else {
-            throw std::runtime_error("Invalid json type");
-        }
-    }
-};
-
-class JsonDeserializer
-{
-    std::istream &m_stream;
-    nlohmann::json m_json;
-    std::vector<nlohmann::json> m_objects;
-    std::size_t m_idx = 0;
-
-    std::vector<std::string> m_next_names;
-
-    std::stack<std::size_t, std::vector<std::size_t>> m_arr_idxes;
-
-public:
-    static constexpr bool is_binary = false;
-
-    JsonDeserializer(std::istream &stream) : m_stream(stream)
-    {
-        m_stream >> m_json;
-        m_objects.emplace_back(m_json);
-    }
-
-    const nlohmann::json &Json() const { return m_objects.back(); }
-
-    void SetNextName(std::string_view name) { m_next_names.emplace_back(name); }
-
-    std::string NextName()
-    {
-        if (m_next_names.empty()) {
-            return std::format("value{}", m_idx++);
-        } else {
-            std::string name = std::move(m_next_names.back());
-            m_next_names.pop_back();
-            return std::move(name);
-        }
-    }
-
-    void NewObject()
-    {
-        auto &current = m_objects.back();
-        if (current.is_object()) {
-            m_objects.emplace_back(current[NextName()]);
-        } else if (current.is_array()) {
-            m_objects.emplace_back(current[m_arr_idxes.top()++]);
-        } else {
-            ZEN_THROW("cannot obtain new object");
-        }
-    }
-
-    void FinishObject()
-    {
-        if (m_objects.back().is_array()) {
-            m_arr_idxes.pop();
-        }
-        m_objects.pop_back();
-    }
-
-    void NewArray()
-    {
-        m_objects.emplace_back(m_objects.back()[NextName()]);
-        m_arr_idxes.push(0);
-    }
-
-    void operator()(RangeSize &size)
-    {
-        auto &current = m_objects.back();
-        if (current.is_array()) {
-            size.size = current.size();
-        } else {
-            ZEN_THROW("Current object is not an array");
-        }
-    }
-
-    void operator()(std::span<std::uint8_t> bytes)
-    {
-        std::string encoded;
-        (*this)(encoded);
-        auto decoded = base64_decode(encoded);
-        std::copy_n(decoded.begin(), bytes.size(), bytes.begin());
-    }
-
-    template <typename T>
-        requires std::is_arithmetic_v<T> || std::is_same_v<T, std::string>
-    void operator()(T &t)
-    {
-        auto &current = m_objects.back();
-        if (current.is_object()) {
-            current[NextName()].get_to(t);
-        } else if (current.is_array()) {
-            current[m_arr_idxes.top()++].get_to(t);
-        } else {
-            ZEN_THROW(fmt::format("Invalid json type {}", current.dump()));
-        }
-    }
-};
-
-} // namespace zen
-namespace zen
-{
-
 template <bool IsArray, typename TSerializer>
-struct NewJsonScope {
+struct NewObjectScope {
     TSerializer &serializer;
     Scope scope;
 
-    NewJsonScope(TSerializer &ser)
-        : serializer(ser), scope([&] { serializer.FinishObject(); })
+    NewObjectScope(TSerializer &ser)
+        : serializer(ser), scope([&] {
+              if constexpr (IsArray) {
+                  serializer.FinishObject();
+              } else {
+                  serializer.FinishArray();
+              }
+          })
     {
         if constexpr (IsArray) {
             serializer.NewArray();
@@ -227,22 +52,22 @@ struct NewJsonScope {
     }
 };
 
-class ZEN_SERIALIZATION_EXPORT OutArchive : public ArchiveBase
+class OutArchive : public ArchiveBase
 {
-public:
-    using TSerializer = JsonSerializer;
-
-private:
     std::set<std::uintptr_t> m_pointers;
 
-    TSerializer m_serializer;
+    OutSerializer m_serializer;
 
 public:
-    constexpr bool IsOutput() const { return true; }
+    using TSerializer = OutSerializer;
 
-    OutArchive(std::ostream &stream) : m_serializer(stream) {}
+    static constexpr bool is_input = false;
 
-    ~OutArchive() {}
+    OutArchive(OutSerializer serializer) : m_serializer(std::move(serializer))
+    {
+    }
+
+    void Flush() { m_serializer.Flush(); }
 
     void operator()(auto &&item1, auto &&...items)
     {
@@ -265,16 +90,16 @@ private:
     {
         constexpr bool is_range = std::ranges::range<T>;
         if constexpr (requires(const T item) { item.save(*this); }) {
-            NewJsonScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<is_range, TSerializer> scope(m_serializer);
             item.save(*this);
         } else if constexpr (requires(const T item) { save(item, *this); }) {
-            NewJsonScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<is_range, TSerializer> scope(m_serializer);
             save(item, *this);
         } else if constexpr (requires(T item) { item.serialize(*this); }) {
-            NewJsonScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<is_range, TSerializer> scope(m_serializer);
             const_cast<T &>(item).serialize(*this);
         } else if constexpr (requires(T item) { serialize(item, *this); }) {
-            NewJsonScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<is_range, TSerializer> scope(m_serializer);
             serialize(const_cast<T &>(item), *this);
         } else if constexpr (requires(T item) { serialize(item); }) {
             serialize(item);
@@ -284,30 +109,29 @@ private:
     }
 
     template <typename T>
-        requires std::is_arithmetic_v<T>
-    void serialize(const T &item)
-    {
-        m_serializer(item);
-    }
-
-    template <typename T>
         requires std::is_enum_v<T>
     void serialize(const T &item)
     {
         serialize(static_cast<std::underlying_type_t<T>>(item));
     }
 
-    void serialize(const std::string &item) { m_serializer(item); }
+    template <typename T>
+        requires std::is_arithmetic_v<T>
+    void serialize(const T &item)
+    {
+        m_serializer(item);
+    }
 
-    void serialize(const RangeSize &item) { m_serializer(item); }
+    void serialize(const RangeSize &item) { m_serializer(item.size); }
+
+    void serialize(const std::string &item) { m_serializer(item); }
 
     template <std::ranges::range Rng>
     void serialize(const Rng &items)
     {
         using T = std::ranges::range_value_t<Rng>;
-        constexpr bool save_binary = TSerializer::is_binary &&
-                                     std::ranges::contiguous_range<Rng> &&
-                                     std::is_arithmetic_v<T>;
+        constexpr bool save_binary =
+            std::ranges::contiguous_range<Rng> && std::is_arithmetic_v<T>;
 
         std::size_t n;
         if constexpr (std::ranges::sized_range<Rng>) {
@@ -317,16 +141,19 @@ private:
                               std::ranges::end(items));
         }
 
-        serialize(RangeSize(n));
+        m_serializer(RangeSize(n));
         if constexpr (save_binary) {
-            auto ptr = reinterpret_cast<const uint8_t *>(items.data());
-            std::span<const std::uint8_t> bytes(ptr, n * sizeof(T));
-            m_serializer(bytes);
-        } else {
-            NewJsonScope<true, TSerializer> scope(m_serializer);
-            for (const auto &i : items) {
-                trySerialize(i);
+            if (m_serializer.IsBinary()) {
+                auto ptr = reinterpret_cast<const char *>(items.data());
+                std::span<const char> bytes(ptr, n * sizeof(T));
+                m_serializer(bytes);
+                return;
             }
+        }
+
+        NewObjectScope<true, TSerializer> scope(m_serializer);
+        for (const auto &i : items) {
+            trySerialize(i);
         }
     }
 
@@ -339,7 +166,7 @@ private:
     template <typename T>
     void serialize(const std::weak_ptr<T> &item)
     {
-        serialize(item.lock().get());
+        serialize(item.lock());
     }
 
     template <typename T>
@@ -353,7 +180,7 @@ private:
     void serialize(const T &item)
     {
         auto id = reinterpret_cast<std::uintptr_t>(item);
-        NewJsonScope<false, TSerializer> scope(m_serializer);
+        NewObjectScope<false, TSerializer> scope(m_serializer);
         trySerialize(NVP(id));
         if (id == 0) {
             return;
@@ -374,25 +201,28 @@ private:
             trySerialize(make_nvp("type_name", type_name));
             const auto &serializer = GetSerializer(type_name);
             m_serializer.SetNextName("data");
-            NewJsonScope<false, TSerializer> scope2(m_serializer);
+            NewObjectScope<false, TSerializer> scope2(m_serializer);
             serializer(item, *this);
         }
     }
 };
 
-class ZEN_SERIALIZATION_EXPORT InArchive : public ArchiveBase
+class InArchive : public ArchiveBase
 {
-public:
-    using TSerializer = JsonDeserializer;
-
-private:
     std::map<void *, std::shared_ptr<void>> m_shared_pointers;
     std::map<std::uintptr_t, void *> m_raw_pointers;
 
-    TSerializer m_serializer;
+    InDeserializer m_serializer;
 
 public:
-    InArchive(std::istream &stream) : m_serializer(stream) {}
+    using TSerializer = InDeserializer;
+
+    constexpr static bool is_input = true;
+
+    InArchive(InDeserializer deserializer)
+        : m_serializer(std::move(deserializer))
+    {
+    }
 
     void operator()(auto &&item1, auto &&...items)
     {
@@ -424,16 +254,16 @@ private:
     {
         constexpr bool is_range = std::ranges::range<T>;
         if constexpr (requires(T item) { item.load(*this); }) {
-            NewJsonScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<is_range, TSerializer> scope(m_serializer);
             item.load(*this);
         } else if constexpr (requires(T item) { load(item, *this); }) {
-            NewJsonScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<is_range, TSerializer> scope(m_serializer);
             load(item, *this);
         } else if constexpr (requires(T item) { item.serialize(*this); }) {
-            NewJsonScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<is_range, TSerializer> scope(m_serializer);
             item.serialize(*this);
         } else if constexpr (requires(T item) { serialize(item, *this); }) {
-            NewJsonScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<is_range, TSerializer> scope(m_serializer);
             serialize(item, *this);
         } else if constexpr (requires { serialize(item); }) {
             // the defaul serialization function for basic types
@@ -469,29 +299,30 @@ private:
     void serialize(Rng &items)
     {
         using T = std::ranges::range_value_t<Rng>;
-        constexpr bool save_binary = TSerializer::is_binary &&
-                                     std::ranges::contiguous_range<Rng> &&
-                                     std::is_arithmetic_v<T>;
+        constexpr bool save_binary =
+            std::ranges::contiguous_range<Rng> && std::is_arithmetic_v<T>;
 
         RangeSize sn(0);
         if constexpr (save_binary) {
-            serialize(sn);
-            std::size_t n = sn.size;
+            if (m_serializer.IsBinary()) {
+                m_serializer(sn);
+                std::size_t n = sn.size;
 
-            if constexpr (requires { items.resize(n); }) {
-                items.resize(n);
+                if constexpr (requires { items.resize(n); }) {
+                    items.resize(n);
+                }
+                auto ptr = reinterpret_cast<char *>(items.data());
+                std::span<char> span(ptr, n * sizeof(T));
+                m_serializer(span);
+                return;
             }
-            auto ptr = reinterpret_cast<uint8_t *>(items.data());
-            std::span<uint8_t> span(ptr, n * sizeof(T));
-            m_serializer(span);
-            return;
         }
 
         // for really range types, we need to start NewJsonScope first to get
         // the current array size
-        NewJsonScope<true, TSerializer> scope(m_serializer);
+        NewObjectScope<true, TSerializer> scope(m_serializer);
 
-        serialize(sn);
+        m_serializer(sn);
         std::size_t n = sn.size;
 
         if constexpr (requires { items.resize(n); }) {
@@ -551,7 +382,7 @@ private:
     void serialize(T &ptr, bool shared = false)
     {
         std::uintptr_t id;
-        NewJsonScope<false, TSerializer> scope(m_serializer);
+        NewObjectScope<false, TSerializer> scope(m_serializer);
         auto nvp = make_nvp("id", id);
         trySerialize(nvp);
         if (id == 0) {
@@ -582,13 +413,50 @@ private:
             }
             const auto &deserializer = GetDeserializer(type_name);
             m_serializer.SetNextName("data");
-            NewJsonScope<false, TSerializer> scope2(m_serializer);
+            NewObjectScope<false, TSerializer> scope2(m_serializer);
             deserializer(ptr, *this);
         }
     }
 };
 } // namespace zen
 
+// namespace zen
+// {
+// class ZEN_SERIALIZATION_EXPORT OutArchive
+// {
+// public:
+//     std::variant<GeneralOutArchive<JsonSerializer>,
+//                  GeneralOutArchive<BinarySerializer>>
+//         archive;
+
+//     void Flush()
+//     {
+//         std::visit([](auto &ar) { ar.Flush(); }, archive);
+//     }
+
+//     void operator()(auto &&...args)
+//     {
+//         std::visit(
+//             [&](auto &a) { return a(std::forward<decltype(args)>(args)...);
+//             }, archive);
+//     }
+// };
+
+// class ZEN_SERIALIZATION_EXPORT InArchive
+// {
+// public:
+//     std::variant<GeneralInArchive<JsonDeserializer>,
+//                  GeneralInArchive<BinaryDeserializer>>
+//         archive;
+
+//     void operator()(auto &&...args)
+//     {
+//         std::visit(
+//             [&](auto &a) { return a(std::forward<decltype(args)>(args)...);
+//             }, archive);
+//     }
+// };
+// } // namespace zen
 /////////// variant serialization ////////////////
 
 #include <variant>
@@ -626,9 +494,9 @@ void load(std::variant<Args...> &variant, InArchive &ar)
     std::visit([&ar](auto &&arg) { ar(make_nvp("value", arg)); }, variant);
 }
 
-void save(const std::monostate &, OutArchive &ar) {}
+inline void save(const std::monostate &, OutArchive &ar) {}
 
-void load(std::monostate &, InArchive &ar) {}
+inline void load(std::monostate &, InArchive &ar) {}
 } // namespace zen
 
 //// stack serialization ///////
@@ -754,4 +622,7 @@ void load(T &t, InArchive &ar)
     ar(make_nvp("value", str));
     t = T(str);
 }
+
 } // namespace zen
+
+// namespace zen

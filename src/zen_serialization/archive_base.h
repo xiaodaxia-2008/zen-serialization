@@ -192,6 +192,9 @@ struct ZEN_SERIALIZATION_EXPORT ArchiveBase {
     template <typename T>
     static T *Create(const std::string &name)
     {
+        if (name.empty()) {
+            ZEN_THROW("Class name is empty");
+        }
         try {
             return static_cast<T *>(GetConstructor(name)());
         } catch (...) {
@@ -201,7 +204,7 @@ struct ZEN_SERIALIZATION_EXPORT ArchiveBase {
             }
         }
 
-        throw std::runtime_error(fmt::format("No constructor for {} ", name));
+        ZEN_THROW(fmt::format("No constructor for {}", name));
     }
 };
 

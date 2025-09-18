@@ -11,6 +11,7 @@
 
 #include <fmt/ranges.h>
 
+template <typename TOut, typename TIn>
 void test_shared_ptr()
 {
     std::shared_ptr<BaseNode> node1 =
@@ -25,19 +26,16 @@ void test_shared_ptr()
     SPDLOG_INFO("node3: {}", *node3);
 
     std::stringstream ss;
-    {
-        OutArchive ar(ss);
-        ar(NVP(node1));
-    }
+    OutArchive oar{OutSerializer{TOut{ss}}};
+    oar(NVP(node1));
+    oar.Flush();
 
     auto data = ss.str();
     SPDLOG_INFO("bytes size: {}\n{}", data.size(), data);
 
-    {
-        InArchive iar(ss);
-        node1.reset();
-        iar(NVP(node1));
-    }
+    InArchive iar{InDeserializer{TIn(ss)}};
+    node1.reset();
+    iar(NVP(node1));
     SPDLOG_INFO("node1: {}", *node1);
 
     node2 = node1->GetChild(0);
@@ -63,7 +61,8 @@ int main()
     });
 
     spdlog::set_level(spdlog::level::debug);
-    test_shared_ptr();
+    // test_shared_ptr<JsonSerializer, JsonDeserializer>();
+    test_shared_ptr<BinarySerializer, BinaryDeserializer>();
 
     return 0;
 }
