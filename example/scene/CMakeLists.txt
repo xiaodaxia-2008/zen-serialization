@@ -1,0 +1,15 @@
+include(GenerateExportHeader)
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+add_library(zenser_dummy_lib_base SHARED Base.cpp)
+generate_export_header(zenser_dummy_lib_base)
+target_link_libraries(zenser_dummy_lib_base PUBLIC zen_serialization)
+
+add_library(zenser_dummy_lib_derived SHARED Derived.cpp)
+generate_export_header(zenser_dummy_lib_derived)
+target_link_libraries(zenser_dummy_lib_derived PUBLIC zenser_dummy_lib_base)
+
+add_executable(scene scene.cpp)
+target_link_libraries(scene PRIVATE zenser_dummy_lib_derived)
+target_compile_features(scene PRIVATE cxx_std_23)
