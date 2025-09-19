@@ -13,6 +13,7 @@
 #include <iostream>
 #include <span>
 #include <string_view>
+#include <vector>
 
 namespace zen
 {
@@ -20,15 +21,15 @@ namespace zen
 class JsonSerializer
 {
     std::ostream &m_stream;
-    std::stack<nlohmann::json, std::vector<nlohmann::json>> m_objects;
-    std::stack<std::string, std::vector<std::string>> m_next_names;
+    std::vector<nlohmann::json> m_objects;
+    std::vector<std::string> m_next_names;
     std::size_t m_idx = 0;
     int m_indentation{-1};
 
     const nlohmann::json &Json() const
     {
         assert(m_objects.size() == 1);
-        return m_objects.top();
+        return m_objects.back();
     }
 
     std::string NextName()
@@ -36,8 +37,8 @@ class JsonSerializer
         if (m_next_names.empty()) {
             return std::format("value{}", m_idx++);
         } else {
-            auto name = std::move(m_next_names.top());
-            m_next_names.pop();
+            auto name = std::move(m_next_names.back());
+            m_next_names.pop_back();
             if (name.empty()) {
                 return std::format("value{}", m_idx++);
             } else {
@@ -50,22 +51,22 @@ public:
     JsonSerializer(std::ostream &stream, int indentation = -1)
         : m_stream(stream), m_indentation(indentation)
     {
-        m_objects.emplace(nlohmann::json::object());
+        m_objects.emplace_back(nlohmann::json::object());
     }
 
     static constexpr bool IsBinary() { return false; }
 
     void Flush() { m_stream << Json().dump(m_indentation); }
 
-    void SetNextName(std::string_view name) { m_next_names.emplace(name); }
+    void SetNextName(std::string_view name) { m_next_names.emplace_back(name); }
 
-    void NewObject() { m_objects.emplace(nlohmann::json::object()); }
+    void NewObject() { m_objects.emplace_back(nlohmann::json::object()); }
 
     void FinishObject()
     {
-        auto current = std::move(m_objects.top());
-        m_objects.pop();
-        auto &parent = m_objects.top();
+        auto current = std::move(m_objects.back());
+        m_objects.pop_back();
+        auto &parent = m_objects.back();
         if (parent.is_array()) {
             parent.push_back(std::move(current));
         } else if (parent.is_object()) {
@@ -77,7 +78,7 @@ public:
         }
     }
 
-    void NewArray() { m_objects.emplace(nlohmann::json::array()); }
+    void NewArray() { m_objects.emplace_back(nlohmann::json::array()); }
 
     void FinishArray() { FinishObject(); }
 
@@ -95,7 +96,7 @@ public:
         requires std::is_arithmetic_v<T> || std::is_same_v<T, std::string>
     void operator()(const T &t)
     {
-        auto &current = m_objects.top();
+        auto &current = m_objects.back();
         if (current.is_object()) {
             current[NextName()] = t;
         } else if (current.is_array()) {
@@ -110,20 +111,20 @@ class JsonDeserializer
 {
     std::istream &m_stream;
     nlohmann::json m_json;
-    std::stack<nlohmann::json, std::vector<nlohmann::json>> m_objects;
+    std::vector<nlohmann::json> m_objects;
     std::size_t m_idx = 0;
 
-    std::stack<std::string, std::vector<std::string>> m_next_names;
+    std::vector<std::string> m_next_names;
 
-    std::stack<std::size_t, std::vector<std::size_t>> m_arr_idxes;
+    std::vector<std::size_t> m_arr_idxes;
 
     std::string NextName()
     {
         if (m_next_names.empty()) {
             return std::format("value{}", m_idx++);
         } else {
-            std::string name = std::move(m_next_names.top());
-            m_next_names.pop();
+            std::string name = std::move(m_next_names.back());
+            m_next_names.pop_back();
             return std::move(name);
         }
     }
@@ -132,22 +133,22 @@ public:
     JsonDeserializer(std::istream &stream) : m_stream(stream)
     {
         m_stream >> m_json;
-        m_objects.emplace(m_json);
+        m_objects.emplace_back(m_json);
     }
 
     static constexpr bool IsBinary() { return false; }
 
     void Flush() {}
 
-    void SetNextName(std::string_view name) { m_next_names.emplace(name); }
+    void SetNextName(std::string_view name) { m_next_names.emplace_back(name); }
 
     void NewObject()
     {
-        auto &current = m_objects.top();
+        auto &current = m_objects.back();
         if (current.is_object()) {
-            m_objects.emplace(current[NextName()]);
+            m_objects.emplace_back(current[NextName()]);
         } else if (current.is_array()) {
-            m_objects.emplace(current[m_arr_idxes.top()++]);
+            m_objects.emplace_back(current[m_arr_idxes.back()++]);
         } else {
             ZEN_THROW("cannot obtain new object");
         }
@@ -155,21 +156,21 @@ public:
 
     void FinishObject()
     {
-        if (m_objects.top().is_array()) {
-            m_arr_idxes.pop();
+        if (m_objects.back().is_array()) {
+            m_arr_idxes.pop_back();
         }
-        m_objects.pop();
+        m_objects.pop_back();
     }
 
     void NewArray()
     {
-        auto &current = m_objects.top();
+        auto &current = m_objects.back();
         if (current.is_object()) {
-            m_objects.emplace(current[NextName()]);
-            m_arr_idxes.emplace(0);
+            m_objects.emplace_back(current[NextName()]);
+            m_arr_idxes.emplace_back(0);
         } else if (current.is_array()) {
-            m_objects.emplace(current[m_arr_idxes.top()++]);
-            m_arr_idxes.emplace(0);
+            m_objects.emplace_back(current[m_arr_idxes.back()++]);
+            m_arr_idxes.emplace_back(0);
         } else {
             ZEN_THROW("cannot obtain new array");
         }
@@ -178,7 +179,7 @@ public:
 
     void operator()(RangeSize &size)
     {
-        auto &current = m_objects.top();
+        auto &current = m_objects.back();
         if (current.is_array()) {
             size.size = current.size();
         } else {
@@ -198,11 +199,11 @@ public:
         requires std::is_arithmetic_v<T> || std::is_same_v<T, std::string>
     void operator()(T &t)
     {
-        auto &current = m_objects.top();
+        auto &current = m_objects.back();
         if (current.is_object()) {
             current[NextName()].get_to(t);
         } else if (current.is_array()) {
-            current[m_arr_idxes.top()++].get_to(t);
+            current[m_arr_idxes.back()++].get_to(t);
         } else {
             ZEN_THROW(fmt::format("Invalid json type {}", current.dump()));
         }
