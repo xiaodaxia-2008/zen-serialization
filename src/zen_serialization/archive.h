@@ -14,6 +14,7 @@
 #include "serializer.h"
 
 #include <iterator>
+#include <optional>
 
 namespace zen
 {
@@ -132,6 +133,16 @@ private:
     void serialize(const T &item)
     {
         m_serializer(item);
+    }
+
+    template <typename T>
+    void serialize(const std::optional<T> &item)
+    {
+        NewObjectScope<false, TSerializer> scope(m_serializer);
+        trySerialize(make_nvp("has_value", item.has_value()));
+        if (item.has_value()) {
+            trySerialize(make_nvp("value", *item));
+        }
     }
 
     void serialize(const RangeSize &item) { m_serializer(item.size); }
@@ -309,6 +320,18 @@ private:
         std::underlying_type_t<T> value;
         serialize(value);
         item = static_cast<T>(value);
+    }
+
+    template <typename T>
+    void serialize(std::optional<T> &item)
+    {
+        NewObjectScope<false, TSerializer> scope(m_serializer);
+        bool has_value;
+        trySerialize(make_nvp("has_value", has_value));
+        if (has_value) {
+            item.emplace();
+            trySerialize(make_nvp("value", *item));
+        }
     }
 
     void serialize(std::string &item) { m_serializer(item); }

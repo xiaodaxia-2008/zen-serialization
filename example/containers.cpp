@@ -6,7 +6,7 @@
 using namespace zen;
 
 template <typename TOut, typename TIn>
-void test_vec_map()
+void test_range()
 {
     using T = std::vector<std::map<int, std::string>>;
     T value_in = {
@@ -34,4 +34,4 @@ void test_vec_map()
     iar(make_nvp("value", value_out));
 }
 
-int main() { test_vec_map<JsonSerializer, JsonDeserializer>(); }
+int main() { test_range<JsonSerializer, JsonDeserializer>(); }

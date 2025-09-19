@@ -8,5 +8,10 @@ add_executable(tests
     test_struct.cpp
     test_containers.cpp
     test_associative.cpp
+    test_optional.cpp
+    test_basic_types.cpp
+    test_smart_pointers.cpp
+    test_nested_containers.cpp
+    test_custom_class.cpp
+    test_unordered_associative.cpp
 )
-

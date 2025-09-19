@@ -3,36 +3,42 @@
 #include <catch.hpp>
 #include <fmt/ranges.h>
 
-#include <queue>
-#include <stack>
 #include <deque>
-#include <unordered_map>
-#include <unordered_set>
 #include <forward_list>
 #include <list>
 #include <map>
+#include <queue>
 #include <set>
+#include <stack>
+#include <unordered_map>
+#include <unordered_set>
 
 using namespace zen;
 
-template <typename TOut, typename TIn>
-void test_queue()
+template <std::ranges::range T>
+void Equal(T &&a, T &&b)
 {
-    using T = std::queue<int>;
-    T value_in, value_out;
-    value_in.
-
+    using value_type = std::ranges::range_value_t<T>;
+    REQUIRE(std::ranges::distance(a) == std::ranges::distance(b));
+    for (auto &&[e1, e2] : std::views::zip(a, b)) {
+        if constexpr (std::ranges::range<value_type> &&
+                      !std::equality_comparable<value_type>) {
+            Equal(e1, e2);
+        } else {
+            REQUIRE(e1 == e2);
+        }
+    }
 }
 
 template <typename TOut, typename TIn>
-void test_stack()
+void test_array()
 {
-    std::string name = "stack";
-    using T = std::stack<std::pair<int, std::string>>;
+    std::string name = "array";
+    using T = std::array<int, 3>;
     T value_in, value_out;
-    value_in.emplace(std::pair<int, std::string>{1, "one"});
-    value_in.emplace(std::pair<int, std::string>{2, "two"});
-    value_in.emplace(std::pair<int, std::string>{3, "three"});
+    value_in[0] = 1;
+    value_in[1] = 2;
+    value_in[2] = 3;
 
     std::stringstream ss;
     OutArchive oar{TOut{ss}};
@@ -42,86 +48,190 @@ void test_stack()
     InArchive iar{TIn{ss}};
     iar(make_nvp(name, value_out));
 
-    REQUIRE(fmt::format("{}", value_in) == fmt::format("{}", value_out));
+    Equal(value_in, value_out);
 }
 
-template <typename TOut, typename TIn>
-void test_vec_map()
+TEST_CASE("containers", "[array][json]")
 {
-    using T = std::vector<std::map<int, std::string>>;
+    test_array<JsonSerializer, JsonDeserializer>();
+}
+
+TEST_CASE("containers", "[array][binary]")
+{
+    test_array<BinarySerializer, BinaryDeserializer>();
+}
+
+template <typename TOut, typename TIn, template <typename...> typename TMap>
+void test_map()
+{
+    std::string name = "map";
+    using T = TMap<std::string, int>;
     T value_in, value_out;
-
-    value_in = {
-        {
-            {1, "one"},
-            {2, "two"},
-            {3, "three"},
-        },
-        {
-            {4, "four"},
-            {5, "five"},
-            {6, "six"},
-        },
-    };
+    value_in.emplace("one", 1);
+    value_in.emplace("two", 2);
+    value_in.emplace("three", 3);
+    value_in.emplace("two", 4);
+    value_in.emplace("three", 6);
 
     std::stringstream ss;
     OutArchive oar{TOut{ss}};
-    oar(make_nvp("value", value_in));
+    oar(make_nvp(name, value_in));
     oar.Flush();
 
     InArchive iar{TIn{ss}};
-    iar(make_nvp("value", value_out));
+    iar(make_nvp(name, value_out));
 
-    REQUIRE(fmt::format("{}", value_in) == fmt::format("{}", value_out));
+    Equal(value_in, value_out);
 }
 
-template <typename TOut, typename TIn>
-void test_vec_list()
+TEST_CASE("containers", "[map][json]")
 {
-    std::vector<std::list<int>> value_in, value_out;
-    value_in = {
-        {1, 2, 3},
-        {4, 5, 6},
-        {7, 8},
-    };
+    test_map<JsonSerializer, JsonDeserializer, std::map>();
+}
+
+TEST_CASE("containers", "[map][binary]")
+{
+    test_map<BinarySerializer, BinaryDeserializer, std::map>();
+}
+
+TEST_CASE("containers", "[unordered_map][json]")
+{
+    test_map<JsonSerializer, JsonDeserializer, std::unordered_map>();
+}
+
+TEST_CASE("containers", "[unordered_map][binary]")
+{
+    test_map<BinarySerializer, BinaryDeserializer, std::unordered_map>();
+}
+
+TEST_CASE("containers", "[multimap][json]")
+{
+    test_map<JsonSerializer, JsonDeserializer, std::multimap>();
+}
+
+TEST_CASE("containers", "[multimap][binary]")
+{
+    test_map<BinarySerializer, BinaryDeserializer, std::multimap>();
+}
+
+TEST_CASE("containers", "[unordered_multimap][json]")
+{
+    test_map<JsonSerializer, JsonDeserializer, std::unordered_multimap>();
+}
+
+TEST_CASE("containers", "[unordered_multimap][binary]")
+{
+    test_map<BinarySerializer, BinaryDeserializer, std::unordered_multimap>();
+}
+
+template <typename TOut, typename TIn, template <typename...> typename TRng>
+void test_stack_queue()
+{
+    std::string name = "stack";
+    using T = TRng<int>;
+    T value_in, value_out;
+    value_in.emplace(1);
+    value_in.emplace(2);
+    value_in.emplace(3);
 
     std::stringstream ss;
     OutArchive oar{TOut{ss}};
-    oar(make_nvp("value", value_in));
+    oar(make_nvp(name, value_in));
     oar.Flush();
 
     InArchive iar{TIn{ss}};
-    iar(make_nvp("value", value_out));
+    iar(make_nvp(name, value_out));
 
     REQUIRE(value_in == value_out);
 }
 
-TEST_CASE("containers", "[vectorlist][json]")
+template <typename TOut, typename TIn, template <typename...> typename TRng>
+void test_range(bool print = false)
 {
-    test_vec_list<JsonSerializer, JsonDeserializer>();
+    using T = TRng<std::string>;
+    T value_in, value_out;
+
+    value_in = {
+        "one", "two", "three", "four", "five", "six", "one", "six",
+    };
+
+    std::stringstream ss;
+    OutArchive oar{TOut{ss}};
+    oar(make_nvp("value", value_in));
+    oar.Flush();
+
+    InArchive iar{TIn{ss}};
+    iar(make_nvp("value", value_out));
+
+    Equal(value_in, value_out);
 }
 
-TEST_CASE("containers", "[vectormap][json]")
+TEST_CASE("containers", "[vector][json]")
 {
-    test_vec_map<JsonSerializer, JsonDeserializer>();
+    test_range<JsonSerializer, JsonDeserializer, std::vector>();
 }
 
-TEST_CASE("containers", "[stackpair][json]")
+TEST_CASE("containers", "[vector][binary]")
 {
-    test_stack<JsonSerializer, JsonDeserializer>();
+    test_range<BinarySerializer, BinaryDeserializer, std::vector>();
 }
 
-TEST_CASE("containers", "[vectorlist][binary]")
+TEST_CASE("containers", "[list][json]")
 {
-    test_vec_list<BinarySerializer, BinaryDeserializer>();
+    test_range<JsonSerializer, JsonDeserializer, std::list>();
 }
 
-TEST_CASE("containers", "[vectormap][binary]")
+TEST_CASE("containers", "[list][binary]")
 {
-    test_vec_map<BinarySerializer, BinaryDeserializer>();
+    test_range<BinarySerializer, BinaryDeserializer, std::list>();
 }
 
-TEST_CASE("containers", "[stackpair][binary]")
+TEST_CASE("containers", "[forward_list][json]")
 {
-    test_stack<BinarySerializer, BinaryDeserializer>();
+    test_range<JsonSerializer, JsonDeserializer, std::forward_list>();
+}
+
+TEST_CASE("containers", "[forward_list][binary]")
+{
+    test_range<BinarySerializer, BinaryDeserializer, std::forward_list>();
+}
+
+TEST_CASE("containers", "[set][json]")
+{
+    test_range<JsonSerializer, JsonDeserializer, std::set>();
+}
+
+TEST_CASE("containers", "[set][binary]")
+{
+    test_range<BinarySerializer, BinaryDeserializer, std::set>();
+}
+
+TEST_CASE("containers", "[multiset][json]")
+{
+    test_range<JsonSerializer, JsonDeserializer, std::multiset>();
+}
+
+TEST_CASE("containers", "[multiset][binary]")
+{
+    test_range<BinarySerializer, BinaryDeserializer, std::multiset>();
+}
+
+TEST_CASE("containers", "[stack][json]")
+{
+    test_stack_queue<JsonSerializer, JsonDeserializer, std::stack>();
+}
+
+TEST_CASE("containers", "[stack][binary]")
+{
+    test_stack_queue<BinarySerializer, BinaryDeserializer, std::stack>();
+}
+
+TEST_CASE("containers", "[queue][json]")
+{
+    test_stack_queue<JsonSerializer, JsonDeserializer, std::queue>();
+}
+
+TEST_CASE("containers", "[queue][binary]")
+{
+    test_stack_queue<BinarySerializer, BinaryDeserializer, std::queue>();
 }
