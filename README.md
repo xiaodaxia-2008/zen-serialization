@@ -13,5 +13,40 @@ A simple and easy to use serialization library with default json/binary support.
 
 # Usage
 
-- basic usage,  [person example](./example/person.cpp)
-- advanced usage, [scenegraph example](./example/scene/scene.cpp) 
+- basic usage,  [simple example](./example/simple.cpp)
+
+```cpp
+struct Person {
+    std::string name{""};
+    int age{0};
+    double weight{0};
+
+    auto operator<=>(const Person &other) const = default;
+
+    SERIALIZE_MEMBER(name, age, weight)
+};
+
+int main()
+{
+    using namespace zen;
+
+    Person person_in{.name = "John", .age = 40, .weight = 80.8};
+
+    std::stringstream ss;
+    OutArchive oar{JsonSerializer(ss)};
+    oar(make_nvp("john", person_in));
+    oar.Flush();
+
+    SPDLOG_INFO("Serialized: {}", ss.str());
+
+    Person person_out;
+    InArchive iar{JsonDeserializer{ss}};
+    iar(make_nvp("john", person_out));
+
+    ZEN_EUNSURE(person_in == person_out)
+}
+```
+
+- advanced usage, [person example](./example/person.cpp) 
+
+- more advanced usage of a scenegraph structure, [scene example](./example/scene/scene.cpp) 

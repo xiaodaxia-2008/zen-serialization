@@ -10,6 +10,8 @@ struct Person {
     int age{0};
     double weight{0};
 
+    auto operator<=>(const Person &other) const = default;
+
     SERIALIZE_MEMBER(name, age, weight)
 };
 
@@ -29,4 +31,6 @@ int main()
     Person person_out;
     InArchive iar{JsonDeserializer{ss}};
     iar(make_nvp("john", person_out));
+
+    ZEN_EUNSURE(person_in == person_out)
 }
