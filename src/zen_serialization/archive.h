@@ -82,7 +82,7 @@ public:
 
     void operator()(auto &&item1, auto &&...items)
     {
-        trySerialize(make_nvp(item1));
+        process(make_nvp(item1));
         if constexpr (sizeof...(items) > 0) {
             (*this)(items...);
         }
@@ -90,67 +90,64 @@ public:
 
 private:
     template <typename T>
-    void trySerialize(const NamedValuePair<T> &item)
+    void process(const NamedValuePair<T> &item)
     {
         m_serializer.SetNextName(item.name);
-        trySerialize(item.value);
+        process(item.value);
     }
 
     template <typename T>
-    void trySerialize(const T &item)
+    void process(const T &item)
     {
         constexpr bool is_range = std::ranges::range<T>;
-        if constexpr (requires(const T item) { item.save(*this); }) {
+        if constexpr (requires(const T t) { t.save(*this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             item.save(*this);
-        } else if constexpr (requires(const T item) { save(item, *this); }) {
+        } else if constexpr (requires(const T t) { save(t, *this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             save(item, *this);
-        } else if constexpr (requires(T item) { item.serialize(*this); }) {
+        } else if constexpr (requires(T t) { t.serialize(*this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             const_cast<T &>(item).serialize(*this);
-        } else if constexpr (requires(T item) { serialize(item, *this); }) {
+        } else if constexpr (requires(T t) { serialize(t, *this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             serialize(const_cast<T &>(item), *this);
-        } else if constexpr (requires(T item) { serialize(item); }) {
-            serialize(item);
         } else {
-            static_assert(false,
-                          "Unsupported type, define free or member save/load "
-                          "function; or serialize function for it.");
+            static_assert(false, "Unsupported type, define free or member "
+                                 "save/serialize function");
         }
     }
 
     template <typename T>
         requires std::is_enum_v<T>
-    void serialize(const T &item)
+    void process(const T &item)
     {
-        serialize(static_cast<std::underlying_type_t<T>>(item));
+        process(static_cast<std::underlying_type_t<T>>(item));
     }
 
     template <typename T>
         requires std::is_arithmetic_v<T>
-    void serialize(const T &item)
+    void process(const T &item)
     {
         m_serializer(item);
     }
 
     template <typename T>
-    void serialize(const std::optional<T> &item)
+    void process(const std::optional<T> &item)
     {
         NewObjectScope<false, TSerializer> scope(m_serializer);
-        trySerialize(make_nvp("has_value", item.has_value()));
+        process(make_nvp("has_value", item.has_value()));
         if (item.has_value()) {
-            trySerialize(make_nvp("value", *item));
+            process(make_nvp("value", *item));
         }
     }
 
-    void serialize(const RangeSize &item) { m_serializer(item.size); }
+    void process(const RangeSize &item) { m_serializer(item.size); }
 
-    void serialize(const std::string &item) { m_serializer(item); }
+    void process(const std::string &item) { m_serializer(item); }
 
     template <std::ranges::range Rng>
-    void serialize(const Rng &items)
+    void process(const Rng &items)
     {
         using T = std::ranges::range_value_t<Rng>;
         constexpr bool save_binary =
@@ -176,35 +173,35 @@ private:
 
         NewObjectScope<true, TSerializer> scope(m_serializer);
         for (const auto &i : items) {
-            trySerialize(i);
+            process(i);
         }
     }
 
     template <typename T>
-    void serialize(const std::unique_ptr<T> &item)
+    void process(const std::unique_ptr<T> &item)
     {
-        serialize(item.get());
+        process(item.get());
     }
 
     template <typename T>
-    void serialize(const std::weak_ptr<T> &item)
+    void process(const std::weak_ptr<T> &item)
     {
-        serialize(item.lock());
+        process(item.lock());
     }
 
     template <typename T>
-    void serialize(const std::shared_ptr<T> &item)
+    void process(const std::shared_ptr<T> &item)
     {
-        serialize(item.get());
+        process(item.get());
     }
 
     template <typename T>
         requires std::is_pointer_v<T>
-    void serialize(const T &item)
+    void process(const T &item)
     {
         auto id = reinterpret_cast<std::uintptr_t>(item);
         NewObjectScope<false, TSerializer> scope(m_serializer);
-        trySerialize(NVP(id));
+        process(NVP(id));
         if (id == 0) {
             return;
         }
@@ -217,11 +214,11 @@ private:
 
         m_pointers.insert(id);
         if constexpr (!is_polymorphic) {
-            trySerialize(make_nvp("data", *item));
+            process(make_nvp("data", *item));
             return;
         } else {
             const auto &type_name = GetClassName(typeid(*item));
-            trySerialize(make_nvp("type_name", type_name));
+            process(make_nvp("type_name", type_name));
             const auto &serializer = GetSerializer(type_name);
             m_serializer.SetNextName("data");
             NewObjectScope<false, TSerializer> scope2(m_serializer);
@@ -257,7 +254,7 @@ public:
 
     void operator()(auto &&item1, auto &&...items)
     {
-        trySerialize(make_nvp(item1));
+        process(make_nvp(item1));
         if constexpr (sizeof...(items) > 0) {
             (*this)(items...);
         }
@@ -266,80 +263,76 @@ public:
 private:
     template <typename T>
         requires std::is_reference_v<T>
-    void trySerialize(NamedValuePair<T> &&item)
+    void process(NamedValuePair<T> &&item)
     {
         m_serializer.SetNextName(item.name);
-        trySerialize(item.value);
+        process(item.value);
     }
 
     template <typename T>
         requires std::is_reference_v<T>
-    void trySerialize(NamedValuePair<T> &item)
+    void process(NamedValuePair<T> &item)
     {
         m_serializer.SetNextName(item.name);
-        trySerialize(item.value);
+        process(item.value);
     }
 
     template <typename T>
-    void trySerialize(T &item)
+    void process(T &item)
     {
         constexpr bool is_range = std::ranges::range<T>;
-        if constexpr (requires(T item) { item.load(*this); }) {
+        if constexpr (requires(T t) { t.load(*this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             item.load(*this);
-        } else if constexpr (requires(T item) { load(item, *this); }) {
+        } else if constexpr (requires(T t) { load(t, *this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             load(item, *this);
-        } else if constexpr (requires(T item) { item.serialize(*this); }) {
+        } else if constexpr (requires(T t) { t.serialize(*this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             item.serialize(*this);
-        } else if constexpr (requires(T item) { serialize(item, *this); }) {
+        } else if constexpr (requires(T t) { serialize(t, *this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             serialize(item, *this);
-        } else if constexpr (requires { serialize(item); }) {
-            // the defaul serialization function for basic types
-            serialize(item);
         } else {
-            static_assert(false,
-                          "Unsupported type, define free or member save/load "
-                          "function; or serialize function for it.");
+            static_assert(false, "Unsupported type, define free or member "
+                                 "load/serialize function");
         }
     }
 
     template <typename T>
         requires std::is_arithmetic_v<T>
-    void serialize(T &item)
+    void process(T &item)
     {
         m_serializer(item);
     }
 
     template <typename T>
         requires std::is_enum_v<T>
-    void serialize(T &item)
+    void process(T &item)
     {
         std::underlying_type_t<T> value;
-        serialize(value);
+        process(value);
         item = static_cast<T>(value);
     }
 
     template <typename T>
-    void serialize(std::optional<T> &item)
+    void process(std::optional<T> &item)
     {
         NewObjectScope<false, TSerializer> scope(m_serializer);
         bool has_value;
-        trySerialize(make_nvp("has_value", has_value));
+        process(make_nvp("has_value", has_value));
         if (has_value) {
             item.emplace();
-            trySerialize(make_nvp("value", *item));
+            process(make_nvp("value", *item));
         }
     }
 
-    void serialize(std::string &item) { m_serializer(item); }
+    void process(std::string &item) { m_serializer(item); }
 
-    void serialize(RangeSize &item) { m_serializer(item); }
+    void process(RangeSize &item) { m_serializer(item); }
 
     template <std::ranges::range Rng>
-    void serialize(Rng &items)
+    void process(Rng &items)
     {
         using T = std::ranges::range_value_t<Rng>;
         constexpr bool save_binary =
@@ -377,7 +370,7 @@ private:
                 typename std::pair<typename Rng::key_type,
                                    typename Rng::mapped_type>
                     item;
-                trySerialize(item);
+                process(item);
                 items.emplace(std::move(item));
             }
         } else if constexpr (requires {
@@ -387,7 +380,7 @@ private:
                              }) {
             for (std::size_t i = 0; i < n; ++i) {
                 typename Rng::value_type item;
-                trySerialize(item);
+                process(item);
                 items.emplace(std::move(item));
             }
         } else if constexpr (requires {
@@ -395,7 +388,7 @@ private:
                                      typename Rng::iterator, T>;
                              }) {
             for (auto &i : items) {
-                trySerialize(i);
+                process(i);
             }
         } else {
             static_assert(false, "this range type is not supported, please "
@@ -404,26 +397,26 @@ private:
     }
 
     template <typename T>
-    void serialize(std::unique_ptr<T> &item)
+    void process(std::unique_ptr<T> &item)
     {
         T *ptr;
-        serialize(ptr, false);
+        process(ptr, false);
         item = std::unique_ptr<T>(ptr);
     }
 
     template <typename T>
-    void serialize(std::weak_ptr<T> &item)
+    void process(std::weak_ptr<T> &item)
     {
         std::shared_ptr<T> shared;
-        serialize(shared);
+        process(shared);
         item = shared;
     }
 
     template <typename T>
-    void serialize(std::shared_ptr<T> &item)
+    void process(std::shared_ptr<T> &item)
     {
         T *ptr;
-        serialize(ptr, true);
+        process(ptr, true);
         if (ptr == nullptr) {
             item.reset();
             return;
@@ -439,12 +432,12 @@ private:
 
     template <typename T>
         requires std::is_pointer_v<T>
-    void serialize(T &ptr, bool shared = false)
+    void process(T &ptr, bool shared = false)
     {
         std::uintptr_t id;
         NewObjectScope<false, TSerializer> scope(m_serializer);
         auto nvp = make_nvp("id", id);
-        trySerialize(nvp);
+        process(nvp);
         if (id == 0) {
             ptr = nullptr;
             return;
@@ -462,10 +455,10 @@ private:
             if (shared) {
                 m_shared_pointers[ptr] = std::shared_ptr<TVal>(ptr);
             }
-            trySerialize(make_nvp("data", *ptr));
+            process(make_nvp("data", *ptr));
         } else {
             std::string type_name;
-            trySerialize(make_nvp("type_name", type_name));
+            process(make_nvp("type_name", type_name));
             ptr = Create<TVal>(type_name);
             m_raw_pointers[id] = ptr;
             if (shared) {
@@ -478,6 +471,29 @@ private:
         }
     }
 };
+} // namespace zen
+
+namespace zen
+{
+// serialization for comple
+template <typename T, typename TArchive>
+    requires requires(T t) {
+        t.real();
+        t.imag();
+    }
+void serialize(T &item, TArchive &ar)
+{
+    if constexpr (ar.IsInput()) {
+        using value_type = typename T::value_type;
+        value_type real, imag;
+        ar(make_nvp("real", real));
+        ar(make_nvp("imag", imag));
+        item = T(real, imag);
+    } else {
+        ar(make_nvp("real", item.real()));
+        ar(make_nvp("imag", item.imag()));
+    }
+}
 } // namespace zen
 
 /////////// variant serialization ////////////////
@@ -564,7 +580,12 @@ void load(S &s, InArchive &ar)
 {
     typename S::container_type c;
     ar(make_nvp("container", c));
-    s = S(std::move(c));
+    if constexpr (std::is_constructible_v<S, typename S::container_type>) {
+        s = S(std::move(c));
+    } else {
+        // priority_queue specific case
+        s = S(std::begin(c), std::end(c));
+    }
 }
 } // namespace zen
 
@@ -633,5 +654,3 @@ void load(T &t, InArchive &ar)
 }
 
 } // namespace zen
-
-// namespace zen

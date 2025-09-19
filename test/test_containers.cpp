@@ -125,27 +125,6 @@ TEST_CASE("containers", "[unordered_multimap][binary]")
 }
 
 template <typename TOut, typename TIn, template <typename...> typename TRng>
-void test_stack_queue()
-{
-    std::string name = "stack";
-    using T = TRng<int>;
-    T value_in, value_out;
-    value_in.emplace(1);
-    value_in.emplace(2);
-    value_in.emplace(3);
-
-    std::stringstream ss;
-    OutArchive oar{TOut{ss}};
-    oar(make_nvp(name, value_in));
-    oar.Flush();
-
-    InArchive iar{TIn{ss}};
-    iar(make_nvp(name, value_out));
-
-    REQUIRE(value_in == value_out);
-}
-
-template <typename TOut, typename TIn, template <typename...> typename TRng>
 void test_range(bool print = false)
 {
     using T = TRng<std::string>;
@@ -196,6 +175,16 @@ TEST_CASE("containers", "[forward_list][binary]")
     test_range<BinarySerializer, BinaryDeserializer, std::forward_list>();
 }
 
+TEST_CASE("containers", "[deque][json]")
+{
+    test_range<JsonSerializer, JsonDeserializer, std::deque>();
+}
+
+TEST_CASE("containers", "[deque][binary]")
+{
+    test_range<BinarySerializer, BinaryDeserializer, std::deque>();
+}
+
 TEST_CASE("containers", "[set][json]")
 {
     test_range<JsonSerializer, JsonDeserializer, std::set>();
@@ -214,6 +203,27 @@ TEST_CASE("containers", "[multiset][json]")
 TEST_CASE("containers", "[multiset][binary]")
 {
     test_range<BinarySerializer, BinaryDeserializer, std::multiset>();
+}
+
+template <typename TOut, typename TIn, template <typename...> typename TRng>
+void test_stack_queue()
+{
+    std::string name = "stack";
+    using T = TRng<int>;
+    T value_in, value_out;
+    value_in.emplace(1);
+    value_in.emplace(2);
+    value_in.emplace(3);
+
+    std::stringstream ss;
+    OutArchive oar{TOut{ss}};
+    oar(make_nvp(name, value_in));
+    oar.Flush();
+
+    InArchive iar{TIn{ss}};
+    iar(make_nvp(name, value_out));
+
+    REQUIRE(value_in == value_out);
 }
 
 TEST_CASE("containers", "[stack][json]")

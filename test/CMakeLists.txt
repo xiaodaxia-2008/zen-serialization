@@ -14,4 +14,6 @@ add_executable(tests
     test_nested_containers.cpp
     test_custom_class.cpp
     test_unordered_associative.cpp
+    test_priority_queue.cpp
+    test_complex.cpp
 )
