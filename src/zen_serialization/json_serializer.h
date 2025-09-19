@@ -163,8 +163,16 @@ public:
 
     void NewArray()
     {
-        m_objects.emplace(m_objects.top()[NextName()]);
-        m_arr_idxes.push(0);
+        auto &current = m_objects.top();
+        if (current.is_object()) {
+            m_objects.emplace(current[NextName()]);
+            m_arr_idxes.emplace(0);
+        } else if (current.is_array()) {
+            m_objects.emplace(current[m_arr_idxes.top()++]);
+            m_arr_idxes.emplace(0);
+        } else {
+            ZEN_THROW("cannot obtain new array");
+        }
     }
     void FinishArray() { FinishObject(); }
 

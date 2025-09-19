@@ -6,6 +6,7 @@ add_executable(tests
     test_enum.cpp
     test_string.cpp
     test_struct.cpp
+    test_containers.cpp
     test_associative.cpp
 )
 
