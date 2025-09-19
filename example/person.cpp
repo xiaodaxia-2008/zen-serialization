@@ -3,18 +3,36 @@
 #include <string>
 #include <zen_serialization/archive.h>
 
+using namespace zen;
+
+enum class Gender { Male, Female };
+
 struct Person {
+    virtual ~Person() = default;
+
     std::string name{""};
     int age{0};
     double weight{0};
+    Gender gender{Gender::Male};
+
+    SERIALIZE_MEMBER(name, age, weight, gender)
+};
+
+struct Child : public Person {
     std::weak_ptr<Person> father;
 
-    std::vector<std::shared_ptr<Person>> children;
-    std::shared_ptr<Person> first_child;
-
-    SERIALIZE_MEMBER(name, age, weight, father, first_child, children)
-    // SERIALIZE_MEMBER(name, age);
+    SERIALIZE_MEMBER(BaseClass<Person>(this), father)
 };
+
+struct Father : public Person {
+    std::vector<std::shared_ptr<Person>> children;
+
+    SERIALIZE_MEMBER(BaseClass<Person>(this), children)
+};
+
+REGISTER_CLASS(Person)
+REGISTER_CLASS(Child)
+REGISTER_CLASS(Father)
 
 template <>
 struct fmt::formatter<Person> {
@@ -23,60 +41,51 @@ struct fmt::formatter<Person> {
     auto format(const Person &p, format_context &ctx) const
     {
         return format_to(ctx.out(),
-                         "Person: {{name: {}, age: {}, weight: {}, father: {}, "
-                         "first_child: {}, children: {}}}",
-                         p.name, p.age, p.weight,
-                         p.father.lock() ? p.father.lock()->name : "null",
-                         p.first_child ? p.first_child->name : "null",
-                         p.children.size());
+                         "Person name: {}, age: {}, weight: {}, gender: {}",
+                         p.name, p.age, p.weight, std::to_underlying(p.gender));
     }
 };
 
-using namespace zen;
-
-template <typename TOut, typename TIn>
-void test()
+int main()
 {
-    auto john = std::shared_ptr<Person>(
-        new Person{.name = "John", .age = 40, .weight = 80.8});
+    using TOut = JsonSerializer;
+    using TIn = JsonDeserializer;
 
-    auto mike = std::shared_ptr<Person>(
-        new Person{.name = "Mike", .age = 22, .weight = 56.8, .father = john});
-    auto nike = std::shared_ptr<Person>(
-        new Person{.name = "Nike", .age = 20, .weight = 58.8, .father = john});
+    auto father = std::make_shared<Father>();
+    father->name = "John";
+    father->age = 50;
+    father->weight = 80.5;
+    father->gender = Gender::Male;
 
-    john->children.push_back(mike);
-    john->children.push_back(nike);
-    john->first_child = mike;
+    auto child1 = std::make_shared<Child>();
+    child1->name = "Mike";
+    child1->age = 18;
+    child1->weight = 50.5;
+    child1->gender = Gender::Male;
+    child1->father = father;
+
+    father->children.push_back(child1);
 
     std::stringstream ss;
-    OutArchive oar{OutSerializer{TOut(ss)}};
-    oar(NVP(john));
+    OutArchive oar{OutSerializer{TOut(ss, 2)}};
+    oar(make_nvp("John", father));
     oar.Flush();
     SPDLOG_INFO("Serialized: {}", ss.str());
 
-    SPDLOG_INFO("{}", *john);
-
-    john.reset();
+    std::shared_ptr<Person> person_out;
     InArchive iar{InDeserializer{TIn(ss)}};
-    iar(NVP(john));
-    SPDLOG_INFO("{}", *john);
-}
+    iar(make_nvp("John", person_out));
 
-int main()
-{
-    std::set_terminate([] {
-        auto curexp = std::current_exception();
-        if (curexp) {
-            try {
-                spdlog::error("{}", fmt::streamed(std::stacktrace::current()));
-                std::rethrow_exception(curexp);
-            } catch (std::exception &e) {
-                spdlog::error("{}", e.what());
-            }
-        }
-    });
+    ZEN_EUNSURE(person_out->name == father->name);
+    ZEN_EUNSURE(person_out->age == father->age);
+    ZEN_EUNSURE(person_out->weight == father->weight);
 
-    // test<JsonSerializer, JsonDeserializer>();
-    test<BinarySerializer, BinaryDeserializer>();
+    auto father_out = std::static_pointer_cast<Father>(person_out);
+    ZEN_EUNSURE(father_out->children.size() == father->children.size());
+    auto child1_out = std::static_pointer_cast<Child>(father_out->children[0]);
+    ZEN_EUNSURE(child1_out->name == child1->name);
+    ZEN_EUNSURE(child1_out->age == child1->age);
+    ZEN_EUNSURE(child1_out->weight == child1->weight);
+    ZEN_EUNSURE(child1_out->gender == child1->gender);
+    ZEN_EUNSURE(child1_out->father.lock() == father_out);
 }

@@ -14,6 +14,7 @@ project(zen-serialization VERSION 0.1.0
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(Boost CONFIG REQUIRED COMPONENTS pfr)
 
 add_subdirectory(src)
 add_subdirectory(example)

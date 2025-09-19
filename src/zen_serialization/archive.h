@@ -64,13 +64,14 @@ class OutArchive : public ArchiveBase
 public:
     using TSerializer = OutSerializer;
 
-    template <typename T>
-        requires std::is_constructible_v<OutSerializer, T>
-    OutArchive(T serializer) : m_serializer(std::move(serializer))
+    template <typename _TSerializer>
+    OutArchive(std::in_place_type_t<_TSerializer> tag, std::ostream &stream)
+        : m_serializer(tag, stream)
     {
     }
 
-    OutArchive(OutSerializer serializer) : m_serializer(std::move(serializer))
+    template <typename... Args>
+    OutArchive(Args &&...args) : m_serializer(std::forward<Args>(args)...)
     {
     }
 
@@ -130,6 +131,12 @@ private:
     void process(const T &item)
     {
         m_serializer(item);
+    }
+
+    template <typename T>
+    void process(const BaseClass<T> &item)
+    {
+        process(*item.ptr);
     }
 
     template <typename T>
@@ -234,17 +241,19 @@ class InArchive : public ArchiveBase
 
     InDeserializer m_serializer;
 
+    InArchive(const InArchive &) = delete;
+
 public:
     using TSerializer = InDeserializer;
 
-    template <typename T>
-        requires std::is_constructible_v<InDeserializer, T>
-    InArchive(T deserializer) : m_serializer(std::move(deserializer))
+    template <typename _TSerializer>
+    InArchive(std::in_place_type_t<_TSerializer> tag, std::istream &stream)
+        : m_serializer(tag, stream)
     {
     }
 
-    InArchive(InDeserializer deserializer)
-        : m_serializer(std::move(deserializer))
+    template <typename... Args>
+    InArchive(Args &&...args) : m_serializer(std::forward<Args>(args)...)
     {
     }
 
@@ -262,7 +271,6 @@ public:
 
 private:
     template <typename T>
-        requires std::is_reference_v<T>
     void process(NamedValuePair<T> &&item)
     {
         m_serializer.SetNextName(item.name);
@@ -270,7 +278,6 @@ private:
     }
 
     template <typename T>
-        requires std::is_reference_v<T>
     void process(NamedValuePair<T> &item)
     {
         m_serializer.SetNextName(item.name);
@@ -313,6 +320,12 @@ private:
         std::underlying_type_t<T> value;
         process(value);
         item = static_cast<T>(value);
+    }
+
+    template <typename T>
+    void process(BaseClass<T> &item)
+    {
+        process(const_cast<T &>(*item.ptr));
     }
 
     template <typename T>

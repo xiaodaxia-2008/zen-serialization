@@ -48,7 +48,7 @@
 #define REGISTER_CLASS(T)                                                      \
     namespace                                                                  \
     {                                                                          \
-    static int force_register_class = [] {                                     \
+    static int force_register_class_##T = [] {                                 \
         zen::ArchiveBase::RegisterClass<T>(#T);                                \
         return 1;                                                              \
     }();                                                                       \
@@ -60,6 +60,12 @@
 
 #define ZEN_EUNSURE(condition)                                                 \
     if (!(condition)) {                                                        \
+        ZEN_THROW("assertion failed: " #condition);                            \
+    }
+
+#define ZEN_EUNSURE_WITH_MSG(condition, message)                               \
+    if (!(condition)) {                                                        \
+        SPDLOG_CRITICAL(message);                                              \
         ZEN_THROW("assertion failed: " #condition);                            \
     }
 
@@ -98,6 +104,17 @@ NamedValuePair<T> make_nvp(std::string name, T &&value)
 {
     return NamedValuePair<T>{std::move(name), std::forward<T>(value)};
 }
+
+template <typename T>
+struct BaseClass {
+    const T *ptr;
+
+    template <typename D>
+        requires std::is_base_of_v<T, D>
+    BaseClass(const D *d) : ptr(d)
+    {
+    }
+};
 
 class Access
 {

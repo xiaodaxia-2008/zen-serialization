@@ -23,6 +23,11 @@ template <typename... Ts>
 struct Serializer {
     std::variant<Ts...> ser;
 
+    template <typename... Args>
+    Serializer(Args &&...ts) : ser(std::forward<Args>(ts)...)
+    {
+    }
+
     bool IsBinary() const
     {
         return std::visit([](auto &s) { return s.IsBinary(); }, ser);
@@ -75,6 +80,6 @@ using OutSerializer = detail::Serializer<ZEN_SERIALIZATION_OUT_SERIALIZER>;
 #ifndef ZEN_SERIALIZATION_IN_DESERIALIZER
 using InDeserializer = detail::Serializer<JsonDeserializer, BinaryDeserializer>;
 #else
-using InDeserializer = detail::Serializer<ZEN_SERIALIZATION_IN_SERIALIZER>;
+using InDeserializer = detail::Serializer<ZEN_SERIALIZATION_IN_DESERIALIZER>;
 #endif
 } // namespace zen

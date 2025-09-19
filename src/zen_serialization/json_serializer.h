@@ -109,9 +109,10 @@ public:
 
 class JsonDeserializer
 {
-    std::istream &m_stream;
-    nlohmann::json m_json;
-    std::vector<nlohmann::json> m_objects;
+    using json = nlohmann::json;
+
+    json m_json;
+    std::vector<std::reference_wrapper<json>> m_objects;
     std::size_t m_idx = 0;
 
     std::vector<std::string> m_next_names;
@@ -130,10 +131,21 @@ class JsonDeserializer
     }
 
 public:
-    JsonDeserializer(std::istream &stream) : m_stream(stream)
+    JsonDeserializer(std::istream &stream)
     {
-        m_stream >> m_json;
-        m_objects.emplace_back(m_json);
+        stream >> m_json;
+        m_objects.push_back(m_json);
+    }
+
+    JsonDeserializer(JsonDeserializer &&deser)
+    {
+        ZEN_EUNSURE_WITH_MSG(
+            deser.m_objects.empty() ||
+                (deser.m_objects.size() == 1 &&
+                 &deser.m_objects.front().get() == &deser.m_json),
+            "Only untouched deserializers can be moved")
+        m_json = std::move(deser.m_json);
+        m_objects.push_back(m_json);
     }
 
     static constexpr bool IsBinary() { return false; }
@@ -144,19 +156,21 @@ public:
 
     void NewObject()
     {
-        auto &current = m_objects.back();
+        json &current = m_objects.back();
         if (current.is_object()) {
             m_objects.emplace_back(current[NextName()]);
         } else if (current.is_array()) {
             m_objects.emplace_back(current[m_arr_idxes.back()++]);
         } else {
-            ZEN_THROW("cannot obtain new object");
+            ZEN_THROW(fmt::format("cannot obtain new object, current is {}",
+                                  current.type_name()));
         }
     }
 
     void FinishObject()
     {
-        if (m_objects.back().is_array()) {
+        json &current = m_objects.back();
+        if (current.is_array()) {
             m_arr_idxes.pop_back();
         }
         m_objects.pop_back();
@@ -164,7 +178,7 @@ public:
 
     void NewArray()
     {
-        auto &current = m_objects.back();
+        json &current = m_objects.back();
         if (current.is_object()) {
             m_objects.emplace_back(current[NextName()]);
             m_arr_idxes.emplace_back(0);
@@ -179,7 +193,7 @@ public:
 
     void operator()(RangeSize &size)
     {
-        auto &current = m_objects.back();
+        json &current = m_objects.back();
         if (current.is_array()) {
             size.size = current.size();
         } else {
@@ -199,13 +213,13 @@ public:
         requires std::is_arithmetic_v<T> || std::is_same_v<T, std::string>
     void operator()(T &t)
     {
-        auto &current = m_objects.back();
+        json &current = m_objects.back();
         if (current.is_object()) {
             current[NextName()].get_to(t);
         } else if (current.is_array()) {
             current[m_arr_idxes.back()++].get_to(t);
         } else {
-            ZEN_THROW(fmt::format("Invalid json type {}", current.dump()));
+            ZEN_THROW(fmt::format("Invalid json type {}", current.type_name()));
         }
     }
 };
