@@ -288,7 +288,17 @@ private:
     void process(T &item)
     {
         constexpr bool is_range = std::ranges::range<T>;
-        if constexpr (requires(T t) { t.load(*this); }) {
+        if constexpr (std::is_arithmetic_v<T>) {
+            m_serializer(item);
+        } else if constexpr (std::is_enum_v<T>) {
+            std::underlying_type_t<T> value;
+            m_serializer(value);
+            item = static_cast<T>(value);
+        } else if constexpr (std::same_as<T, RangeSize>) {
+            m_serializer(item);
+        } else if constexpr (std::is_pointer_v<T>) {
+            processPointer(item);
+        } else if constexpr (requires(T t) { t.load(*this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             item.load(*this);
         } else if constexpr (requires(T t) { load(t, *this); }) {
@@ -300,27 +310,17 @@ private:
         } else if constexpr (requires(T t) { serialize(t, *this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             serialize(item, *this);
-        } else {
+        } else if constexpr (is_range) {
+            processRange(item);
+        }
+
+        else {
             static_assert(false, "Unsupported type, define free or member "
                                  "load/serialize function");
         }
     }
 
-    template <typename T>
-        requires std::is_arithmetic_v<T>
-    void process(T &item)
-    {
-        m_serializer(item);
-    }
-
-    template <typename T>
-        requires std::is_enum_v<T>
-    void process(T &item)
-    {
-        std::underlying_type_t<T> value;
-        process(value);
-        item = static_cast<T>(value);
-    }
+    void process(std::string &item) { m_serializer(item); }
 
     template <typename T>
     void process(BaseClass<T> &item)
@@ -340,12 +340,8 @@ private:
         }
     }
 
-    void process(std::string &item) { m_serializer(item); }
-
-    void process(RangeSize &item) { m_serializer(item); }
-
     template <std::ranges::range Rng>
-    void process(Rng &items)
+    void processRange(Rng &items)
     {
         using T = std::ranges::range_value_t<Rng>;
         constexpr bool save_binary =
@@ -413,7 +409,7 @@ private:
     void process(std::unique_ptr<T> &item)
     {
         T *ptr;
-        process(ptr, false);
+        processPointer<std::add_pointer_t<T>, false>(ptr);
         item = std::unique_ptr<T>(ptr);
     }
 
@@ -429,7 +425,7 @@ private:
     void process(std::shared_ptr<T> &item)
     {
         T *ptr;
-        process(ptr, true);
+        processPointer<std::add_pointer_t<T>, true>(ptr);
         if (ptr == nullptr) {
             item.reset();
             return;
@@ -443,9 +439,9 @@ private:
         }
     }
 
-    template <typename T>
+    template <typename T, bool IsShared = false>
         requires std::is_pointer_v<T>
-    void process(T &ptr, bool shared = false)
+    void processPointer(T &ptr)
     {
         std::uintptr_t id;
         NewObjectScope<false, TSerializer> scope(m_serializer);
@@ -465,7 +461,7 @@ private:
         if constexpr (!std::is_polymorphic_v<TVal>) {
             ptr = Access::Create<TVal>();
             m_raw_pointers[id] = ptr;
-            if (shared) {
+            if constexpr (IsShared) {
                 m_shared_pointers[ptr] = std::shared_ptr<TVal>(ptr);
             }
             process(make_nvp("data", *ptr));
@@ -474,7 +470,7 @@ private:
             process(make_nvp("type_name", type_name));
             ptr = Create<TVal>(type_name);
             m_raw_pointers[id] = ptr;
-            if (shared) {
+            if constexpr (IsShared) {
                 m_shared_pointers[ptr] = std::shared_ptr<TVal>(ptr);
             }
             const auto &deserializer = GetDeserializer(type_name);

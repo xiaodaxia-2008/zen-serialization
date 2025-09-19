@@ -148,7 +148,9 @@ struct ZEN_SERIALIZATION_EXPORT ArchiveBase {
     static void RegisterClass(const std::string &class_name)
     {
         RegisterClassName<T>(class_name);
-        RegisterConstructor<T>();
+        if constexpr (!std::is_abstract_v<T>) {
+            RegisterConstructor<T>();
+        }
         RegisterSerializer<T>();
         RegisterDeserializer<T>();
     }
