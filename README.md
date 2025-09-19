@@ -47,6 +47,12 @@ int main()
 }
 ```
 
+the expected output is 
+```json
+{"john":{"age":40,"name":"John","weight":80.8}}
+```
+
+
 - advanced usage, [person example](./example/person.cpp) 
 
 - more advanced usage of a scenegraph structure, [scene example](./example/scene/scene.cpp) 
