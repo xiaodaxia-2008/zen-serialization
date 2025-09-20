@@ -1,5 +1,5 @@
 #pragma once
-#include <zenser_dummy_lib_base_export.h>
+#include <base_lib_export.h>
 
 #include <zen_serialization/archive.h>
 
@@ -11,6 +11,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <set>
 #include <stack>
@@ -27,8 +28,7 @@
 
 using namespace zen;
 
-class ZENSER_DUMMY_LIB_BASE_EXPORT BaseNode
-    : public std::enable_shared_from_this<BaseNode>
+class BASE_LIB_EXPORT BaseNode : public std::enable_shared_from_this<BaseNode>
 {
 public:
     BaseNode(std::string name) : m_name(std::move(name))
@@ -38,6 +38,7 @@ public:
         m_number1 = m_number;
         m_variant = "variant";
         m_array = {1.0, 2.0};
+        m_optional = std::pair<int, float>(1, 2.0f);
 
         m_stack.push(1.0);
         m_stack.push(2.0);
@@ -125,6 +126,7 @@ public:
         ar(NVP(m_parent));
         ar(NVP(m_children));
         ar(NVP(m_id));
+        ar(NVP(m_optional));
         ar(NVP(m_number));
         ar(NVP(m_number1));
         ar(NVP(m_number2));
@@ -170,6 +172,7 @@ public:
         if (m_id) {
             fmt::format_to(ctx.out(), ", id: {}", *m_id);
         }
+        fmt::format_to(ctx.out(), ", optional: {}", m_optional);
         if (m_number) {
             fmt::format_to(ctx.out(), ", number: {}", *m_number);
         }
@@ -216,6 +219,8 @@ protected:
     double *m_number{nullptr};
     double *m_number1{nullptr};
     double *m_number2{nullptr};
+
+    std::optional<std::pair<int, float>> m_optional;
 
     std::vector<std::shared_ptr<BaseNode>> m_children;
 

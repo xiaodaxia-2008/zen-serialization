@@ -21,3 +21,5 @@ add_executable(tests
     test_cycle_reference.cpp
     test_expected.cpp
 )
+
+add_test(NAME StandardTest COMMAND tests)

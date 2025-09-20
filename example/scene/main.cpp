@@ -1,4 +1,4 @@
-#include "Derived.h"
+#include "derived_node.h"
 
 #include <spdlog/spdlog.h>
 
@@ -12,7 +12,7 @@
 #include <fmt/ranges.h>
 
 template <typename TOut, typename TIn>
-void test_shared_ptr()
+void test_scene()
 {
     std::shared_ptr<BaseNode> node1 =
         std::make_shared<DerivedNode>("Node1", std::array<float, 3>{2, 2, 2});
@@ -26,7 +26,7 @@ void test_shared_ptr()
     SPDLOG_INFO("node3: {}", *node3);
 
     std::stringstream ss;
-    OutArchive oar{TOut{ss,2}};
+    OutArchive oar{TOut{ss}};
     oar(make_nvp("scene", node1));
     oar.Flush();
 
@@ -54,21 +54,8 @@ void test_shared_ptr()
 namespace fs = std::filesystem;
 int main()
 {
-    std::set_terminate([] {
-        auto curexp = std::current_exception();
-        if (curexp) {
-            try {
-                spdlog::error("{}", fmt::streamed(std::stacktrace::current()));
-                std::rethrow_exception(curexp);
-            } catch (std::exception &e) {
-                spdlog::error("{}", e.what());
-            }
-        }
-    });
-
-    spdlog::set_level(spdlog::level::debug);
-    test_shared_ptr<JsonSerializer, JsonDeserializer>();
-    // test_shared_ptr<BinarySerializer, BinaryDeserializer>();
+    test_scene<JsonSerializer, JsonDeserializer>();
+    test_scene<BinarySerializer, BinaryDeserializer>();
 
     return 0;
 }

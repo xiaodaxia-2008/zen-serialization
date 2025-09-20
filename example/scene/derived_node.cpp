@@ -1,4 +1,4 @@
-#include "Derived.h"
+#include "derived_node.h"
 
 DerivedNode::~DerivedNode() {}
 

@@ -8,7 +8,7 @@ The motivation for this library is to provide complete cross dll support while a
 
 Assuming a scenegraph structure like the following:
 ```cpp
-// BaseNode.h
+// base_node.h
 class BASE_LIB_EXPORT BaseNode {
     int m_int;
     std::string m_string;
@@ -26,7 +26,7 @@ class BASE_LIB_EXPORT BaseNode {
 The serialization implementation could be done in cpp files like the following:
 
 ```cpp
-// BaseNode.cpp
+// base_node.cpp
 void BaseNode::serialize(OutArchive &oar) const
 {
     ar(NVP(m_int), NVP(m_string), NVP(m_children), NVP(m_parent));
@@ -40,11 +40,11 @@ void BaseNode::serialize(InArchive &iar)
 REGISTER_NODE(BaseNode)
 ```
 
-The `BaseNode.cpp` is compiled into a library named `BASE_LIB`.
+The `base_node.cpp` is compiled into a library named `base_lib`.
 
 And there is a derived class like the following:
 ```cpp
-// DerivedNode.h
+// derived_node.h
 class DERIVED_LIB_EXPORT DerivedNode : public BaseNode {
     int m_int2;
     public:
@@ -53,7 +53,7 @@ class DERIVED_LIB_EXPORT DerivedNode : public BaseNode {
 };
 ```
 ```cpp
-// DerivedNode.cpp
+// derived_node.cpp
 void DerivedNode::serialize(OutArchive &oar) const
 {
     ar(make_nvp("base", BaseClass<BaseNode>(this)), NVP(m_int2));
@@ -68,7 +68,7 @@ void DerivedNode::serialize(InArchive &oar)
 REGISTER_NODE(DerivedNode)
 ```
 
-The `DerivedNode.cpp` is compiled into a library named `DERIVED_LIB`.
+The `derived_node.cpp` is compiled into a library named `derived_lib`.
 
 Both the serialization implementation and polymorphic types registration could be done in cpp files which is impossible with cereal or boost serialization.
 
@@ -78,15 +78,14 @@ Both the serialization implementation and polymorphic types registration could b
 - Good readability
 - Support for JSON/binary serialization
 - STL containers support
-- Support for variant, tuple, pair, optional, and expected
+- Support for variant, tuple, pair, optional, and expected etc
 - Raw pointer and smart pointer support
 - Inheritance and polymorphic support
-- Serialization functions can be implemented in source files, not restricted to headers (see [scene example](./example/scene/scene.cpp))
-- Support for std::expected<T, E> (C++23)
+- Serialization functions can be implemented in source files, not restricted to headers (see [scene example](./example/scene/main.cpp))
 
 # Usage
 
-- Basic usage: [simple example](./example/simple.cpp)
+- Basic usage: [simple person example](./example/simple.cpp)
 
 ```cpp
 struct Person {
@@ -125,30 +124,6 @@ The expected output is:
 {"john":{"age":40,"name":"John","weight":80.8}}
 ```
 
-- Advanced usage: [person example](./example/person.cpp) 
+- Advanced usage: [advanced person example](./example/advanced.cpp) 
 
 - More advanced usage of a scenegraph structure: [scene example](./example/scene/scene.cpp) 
-
-- Expected usage, showing how to use std::expected<T, E> with serialization:
-
-```cpp
-struct Data {
-    std::expected<int, std::string> value_or_error;
-    
-    SERIALIZE_MEMBER(value_or_error)
-};
-
-// Usage with successful value
-Data data_in{42};
-
-std::stringstream ss;
-OutArchive oar{JsonSerializer(ss)};
-oar(NVP(data_in));
-oar.Flush();
-
-Data data_out;
-InArchive iar{JsonDeserializer(ss)};
-iar(NVP(data_out));
-
-// data_in and data_out now have equivalent values
-```
