@@ -3,6 +3,9 @@
 
 using namespace zen;
 
+namespace
+{
+
 // 定义基类Animal
 struct Animal {
     virtual ~Animal() = default;
@@ -81,10 +84,9 @@ REGISTER_CLASS(Mammal)
 REGISTER_CLASS(Bird)
 REGISTER_CLASS(Dog)
 REGISTER_CLASS(Eagle)
-REGISTER_CLASS(Zoo)
 
 template <typename TOut, typename TIn>
-void test_inheritance()
+void test_polymorphic_with_registration()
 {
     // 创建动物园
     auto zoo = std::make_shared<Zoo>();
@@ -152,8 +154,14 @@ void test_inheritance()
     CHECK(eagle_out->get_type() == eagle->get_type());
 }
 
-TEST_CASE("inheritance", "[inheritance]")
+} // namespace
+
+TEST_CASE("polymorphic-with-registration", "[polymorphic][json]")
 {
-    test_inheritance<JsonSerializer, JsonDeserializer>();
-    test_inheritance<BinarySerializer, BinaryDeserializer>();
+    test_polymorphic_with_registration<JsonSerializer, JsonDeserializer>();
+}
+
+TEST_CASE("polymorphic-with-registration", "[polymorphic][binary]")
+{
+    test_polymorphic_with_registration<BinarySerializer, BinaryDeserializer>();
 }

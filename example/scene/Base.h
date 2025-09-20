@@ -158,8 +158,12 @@ public:
 
     virtual void format(fmt::format_context &ctx) const
     {
-        fmt::format_to(ctx.out(), "{} with {} children", GetName(),
-                       GetChildrenCount());
+        fmt::format_to(ctx.out(), "{}", GetName());
+        fmt::format_to(ctx.out(), ", children: [");
+        for (auto child : m_children) {
+            fmt::format_to(ctx.out(), "{}, ", child->m_name);
+        }
+        fmt::format_to(ctx.out(), "]");
         if (auto parent = GetParent()) {
             fmt::format_to(ctx.out(), ", parent: {}", parent->GetName());
         }

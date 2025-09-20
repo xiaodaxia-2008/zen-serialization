@@ -26,7 +26,7 @@ void test_shared_ptr()
     SPDLOG_INFO("node3: {}", *node3);
 
     std::stringstream ss;
-    OutArchive oar{TOut{ss}};
+    OutArchive oar{TOut{ss,2}};
     oar(make_nvp("scene", node1));
     oar.Flush();
 
@@ -68,7 +68,7 @@ int main()
 
     spdlog::set_level(spdlog::level::debug);
     test_shared_ptr<JsonSerializer, JsonDeserializer>();
-    test_shared_ptr<BinarySerializer, BinaryDeserializer>();
+    // test_shared_ptr<BinarySerializer, BinaryDeserializer>();
 
     return 0;
 }

@@ -16,6 +16,8 @@ add_executable(tests
     test_unordered_associative.cpp
     test_priority_queue.cpp
     test_complex.cpp
-    test_inheritance.cpp
+    test_polymorphic_with_registration.cpp
+    # test_polymorphic_without_registration.cpp
     test_cycle_reference.cpp
+    test_expected.cpp
 )

@@ -16,23 +16,14 @@
 namespace zen
 {
 
-struct BaseSerializer {
-    void SetNextName(std::string_view /*name*/) {}
-    void NewObject() {}
-    void FinishObject() {}
-    void NewArray() {}
-    void FinishArray() {};
-    void Flush() {}
-};
-
-class BinarySerializer : public BaseSerializer
+class BinarySerializer
 {
     std::ostream &m_stream;
 
 public:
-    BinarySerializer(std::ostream &stream) : m_stream(stream) {}
-
     static constexpr bool IsBinary() { return true; }
+
+    BinarySerializer(std::ostream &stream) : m_stream(stream) {}
 
     void operator()(const RangeSize &size) { (*this)(size.size); }
 
@@ -65,16 +56,14 @@ public:
     }
 };
 
-class BinaryDeserializer : public BaseSerializer
+class BinaryDeserializer
 {
     std::istream &m_stream;
 
 public:
-    static constexpr bool is_binary = true;
+    static constexpr bool IsBinary() { return true; }
 
     BinaryDeserializer(std::istream &stream) : m_stream(stream) {}
-
-    static constexpr bool IsBinary() { return true; }
 
     void operator()(RangeSize &size) { (*this)(size.size); }
 

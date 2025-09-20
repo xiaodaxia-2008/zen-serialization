@@ -101,13 +101,7 @@ private:
     void process(const T &item)
     {
         constexpr bool is_range = std::ranges::range<T>;
-        if constexpr (requires(const T t) { t.save(*this); }) {
-            NewObjectScope<is_range, TSerializer> scope(m_serializer);
-            item.save(*this);
-        } else if constexpr (requires(const T t) { save(t, *this); }) {
-            NewObjectScope<is_range, TSerializer> scope(m_serializer);
-            save(item, *this);
-        } else if constexpr (requires(T t) { t.serialize(*this); }) {
+        if constexpr (requires(T t) { t.serialize(*this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             const_cast<T &>(item).serialize(*this);
         } else if constexpr (requires(T t) { serialize(t, *this); }) {
@@ -298,12 +292,6 @@ private:
             m_serializer(item);
         } else if constexpr (std::is_pointer_v<T>) {
             processPointer(item);
-        } else if constexpr (requires(T t) { t.load(*this); }) {
-            NewObjectScope<is_range, TSerializer> scope(m_serializer);
-            item.load(*this);
-        } else if constexpr (requires(T t) { load(t, *this); }) {
-            NewObjectScope<is_range, TSerializer> scope(m_serializer);
-            load(item, *this);
         } else if constexpr (requires(T t) { t.serialize(*this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             item.serialize(*this);
@@ -503,6 +491,7 @@ void serialize(T &item, TArchive &ar)
         ar(make_nvp("imag", item.imag()));
     }
 }
+
 } // namespace zen
 
 /////////// variant serialization ////////////////
@@ -512,7 +501,7 @@ namespace zen
 {
 
 template <typename... Args>
-void save(const std::variant<Args...> &variant, OutArchive &ar)
+void serialize(const std::variant<Args...> &variant, OutArchive &ar)
 {
     ar(make_nvp("index", variant.index()));
     std::visit([&ar](auto &&arg) { ar(make_nvp("value", arg)); }, variant);
@@ -534,7 +523,7 @@ std::variant<Args...> create_variant(std::size_t index)
 }
 
 template <typename... Args>
-void load(std::variant<Args...> &variant, InArchive &ar)
+void serialize(std::variant<Args...> &variant, InArchive &ar)
 {
     std::size_t index;
     ar(make_nvp("index", index));
@@ -542,9 +531,10 @@ void load(std::variant<Args...> &variant, InArchive &ar)
     std::visit([&ar](auto &&arg) { ar(make_nvp("value", arg)); }, variant);
 }
 
-inline void save(const std::monostate &, OutArchive &ar) {}
-
-inline void load(std::monostate &, InArchive &ar) {}
+template <typename TArchive>
+inline void serialize(std::monostate &, TArchive &ar)
+{
+}
 } // namespace zen
 
 //// stack serialization ///////
@@ -579,13 +569,13 @@ typename S::container_type const &container(const S &stack)
 } // namespace detail
 
 template <detail::have_inner_container S>
-void save(const S &s, OutArchive &ar)
+void serialize(const S &s, OutArchive &ar)
 {
     ar(make_nvp("container", detail::container(s)));
 }
 
 template <detail::have_inner_container S>
-void load(S &s, InArchive &ar)
+void serialize(S &s, InArchive &ar)
 {
     typename S::container_type c;
     ar(make_nvp("container", c));
@@ -601,13 +591,13 @@ void load(S &s, InArchive &ar)
 namespace zen
 {
 template <typename T1, typename T2>
-void save(const std::pair<T1, T2> &pair, OutArchive &ar)
+void serialize(const std::pair<T1, T2> &pair, OutArchive &ar)
 {
     ar(make_nvp("first", pair.first), make_nvp("second", pair.second));
 }
 
 template <typename T1, typename T2>
-void load(std::pair<T1, T2> &pair, InArchive &ar)
+void serialize(std::pair<T1, T2> &pair, InArchive &ar)
 {
     ar(make_nvp("first", pair.first), make_nvp("second", pair.second));
 }
@@ -618,7 +608,7 @@ namespace zen
 // serialization for tuple
 
 template <typename... Args>
-void save(const std::tuple<Args...> &tuple, OutArchive &ar)
+void serialize(const std::tuple<Args...> &tuple, OutArchive &ar)
 {
     // std::apply([&](auto &&...elems) { ar(elems...); }, tuple);
     [&]<std::size_t... I>(std::index_sequence<I...>) {
@@ -627,7 +617,7 @@ void save(const std::tuple<Args...> &tuple, OutArchive &ar)
 }
 
 template <typename... Args>
-void load(std::tuple<Args...> &tuple, InArchive &ar)
+void serialize(std::tuple<Args...> &tuple, InArchive &ar)
 {
     // std::apply([&](auto &&...elems) { ar(elems...); }, tuple);
     [&]<std::size_t... I>(std::index_sequence<I...>) {
@@ -649,13 +639,13 @@ concept is_bitset = requires(T t) {
 } // namespace detail
 
 template <detail::is_bitset T>
-void save(const T &t, OutArchive &ar)
+void serialize(const T &t, OutArchive &ar)
 {
     ar(make_nvp("value", t.to_string()));
 }
 
 template <detail::is_bitset T>
-void load(T &t, InArchive &ar)
+void serialize(T &t, InArchive &ar)
 {
     std::string str;
     ar(make_nvp("value", str));
@@ -663,3 +653,33 @@ void load(T &t, InArchive &ar)
 }
 
 } // namespace zen
+
+#if __has_include(<expected>)
+#include <expected>
+namespace zen
+{
+template <typename U, typename E, typename TArchive>
+void serialize(std::expected<U, E> &item, TArchive &ar)
+{
+    bool has_value = item.has_value();
+    ar(make_nvp("has_value", has_value));
+    if constexpr (ar.IsInput()) {
+        if (has_value) {
+            U value;
+            ar(make_nvp("value", value));
+            item = std::move(value);
+        } else {
+            E error;
+            ar(make_nvp("error", error));
+            item = std::unexpected(std::move(error));
+        }
+    } else {
+        if (has_value) {
+            ar(make_nvp("value", item.value()));
+        } else {
+            ar(make_nvp("error", item.error()));
+        }
+    }
+}
+} // namespace zen
+#endif

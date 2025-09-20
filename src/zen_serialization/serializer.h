@@ -35,7 +35,13 @@ struct Serializer {
 
     void Flush()
     {
-        std::visit([](auto &s) { s.Flush(); }, ser);
+        std::visit(
+            [](auto &s) {
+                if constexpr (requires { s.Flush(); }) {
+                    s.Flush();
+                }
+            },
+            ser);
     }
 
     template <typename... Ts>
@@ -46,27 +52,57 @@ struct Serializer {
 
     void SetNextName(std::string_view name)
     {
-        std::visit([name](auto &s) { s.SetNextName(name); }, ser);
+        std::visit(
+            [name](auto &s) {
+                if constexpr (requires { s.SetNextName(name); }) {
+                    s.SetNextName(name);
+                }
+            },
+            ser);
     }
 
     void NewObject()
     {
-        std::visit([](auto &s) { s.NewObject(); }, ser);
+        std::visit(
+            [](auto &s) {
+                if constexpr (requires { s.NewObject(); }) {
+                    s.NewObject();
+                }
+            },
+            ser);
     }
 
     void FinishObject()
     {
-        std::visit([](auto &s) { s.FinishObject(); }, ser);
+        std::visit(
+            [](auto &s) {
+                if constexpr (requires { s.FinishObject(); }) {
+                    s.FinishObject();
+                }
+            },
+            ser);
     }
 
     void NewArray()
     {
-        std::visit([](auto &s) { s.NewArray(); }, ser);
+        std::visit(
+            [](auto &s) {
+                if constexpr (requires { s.NewArray(); }) {
+                    s.NewArray();
+                }
+            },
+            ser);
     }
 
     void FinishArray()
     {
-        std::visit([](auto &s) { s.FinishArray(); }, ser);
+        std::visit(
+            [](auto &s) {
+                if constexpr (requires { s.FinishArray(); }) {
+                    s.FinishArray();
+                }
+            },
+            ser);
     };
 };
 } // namespace detail

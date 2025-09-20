@@ -16,8 +16,8 @@
 
 namespace zen
 {
-static std::map<std::string, std::function<void *()>> g_constructors;
 static std::map<std::type_index, std::string> g_type_names;
+static std::map<std::string, std::function<void *()>> g_constructors;
 
 static std::map<std::string, std::function<void(void *, OutArchive &ar)>>
     g_serializers;
