@@ -76,16 +76,16 @@ int main()
     InArchive iar{InDeserializer{TIn(ss)}};
     iar(make_nvp("John", person_out));
 
-    ZEN_EUNSURE(person_out->name == father->name);
-    ZEN_EUNSURE(person_out->age == father->age);
-    ZEN_EUNSURE(person_out->weight == father->weight);
+    ZEN_ENSURE(person_out->name == father->name);
+    ZEN_ENSURE(person_out->age == father->age);
+    ZEN_ENSURE(person_out->weight == father->weight);
 
     auto father_out = std::static_pointer_cast<Father>(person_out);
-    ZEN_EUNSURE(father_out->children.size() == father->children.size());
+    ZEN_ENSURE(father_out->children.size() == father->children.size());
     auto child1_out = std::static_pointer_cast<Child>(father_out->children[0]);
-    ZEN_EUNSURE(child1_out->name == child1->name);
-    ZEN_EUNSURE(child1_out->age == child1->age);
-    ZEN_EUNSURE(child1_out->weight == child1->weight);
-    ZEN_EUNSURE(child1_out->gender == child1->gender);
-    ZEN_EUNSURE(child1_out->father.lock() == father_out);
+    ZEN_ENSURE(child1_out->name == child1->name);
+    ZEN_ENSURE(child1_out->age == child1->age);
+    ZEN_ENSURE(child1_out->weight == child1->weight);
+    ZEN_ENSURE(child1_out->gender == child1->gender);
+    ZEN_ENSURE(child1_out->father.lock() == father_out);
 }

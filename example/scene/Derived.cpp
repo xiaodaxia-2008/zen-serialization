@@ -2,16 +2,14 @@
 
 DerivedNode::~DerivedNode() {}
 
-void DerivedNode::serialize(OutArchive &ar) const
+void DerivedNode::save(OutArchive &ar) const
 {
-    const_cast<BaseNode *>(static_cast<const BaseNode *>(this))->serialize(ar);
-    ar(NVP(m_position));
+    ar(make_nvp("base", BaseClass<BaseNode>(this)), NVP(m_position));
 }
 
-void DerivedNode::serialize(InArchive &ar)
+void DerivedNode::load(InArchive &ar)
 {
-    BaseNode::serialize(ar);
-    ar(NVP(m_position));
+    ar(make_nvp("base", BaseClass<BaseNode>(this)), NVP(m_position));
 }
 
 REGISTER_CLASS(DerivedNode)

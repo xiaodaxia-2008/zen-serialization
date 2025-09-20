@@ -42,13 +42,13 @@ void test_shared_ptr()
     iar(make_nvp("scene", node11));
     SPDLOG_INFO("{}", *node1);
     SPDLOG_INFO("{}", *node11);
-    ZEN_EUNSURE(fmt::format("{}", *node1) == fmt::format("{}", *node11));
+    ZEN_ENSURE(fmt::format("{}", *node1) == fmt::format("{}", *node11));
 
     node22 = node11->GetChild(0);
-    ZEN_EUNSURE(fmt::format("{}", *node2) == fmt::format("{}", *node22));
+    ZEN_ENSURE(fmt::format("{}", *node2) == fmt::format("{}", *node22));
 
     node33 = node22->GetChild(0);
-    ZEN_EUNSURE(fmt::format("{}", *node3) == fmt::format("{}", *node33));
+    ZEN_ENSURE(fmt::format("{}", *node3) == fmt::format("{}", *node33));
 }
 
 namespace fs = std::filesystem;

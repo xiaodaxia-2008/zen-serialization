@@ -139,7 +139,7 @@ public:
 
     JsonDeserializer(JsonDeserializer &&deser)
     {
-        ZEN_EUNSURE_WITH_MSG(
+        ZEN_ENSURE_WITH_MSG(
             deser.m_objects.empty() ||
                 (deser.m_objects.size() == 1 &&
                  &deser.m_objects.front().get() == &deser.m_json),

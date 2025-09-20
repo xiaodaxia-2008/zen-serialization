@@ -58,12 +58,12 @@
     SPDLOG_CRITICAL(message);                                                  \
     throw std::runtime_error(message);
 
-#define ZEN_EUNSURE(condition)                                                 \
+#define ZEN_ENSURE(condition)                                                 \
     if (!(condition)) {                                                        \
         ZEN_THROW("assertion failed: " #condition);                            \
     }
 
-#define ZEN_EUNSURE_WITH_MSG(condition, message)                               \
+#define ZEN_ENSURE_WITH_MSG(condition, message)                               \
     if (!(condition)) {                                                        \
         SPDLOG_CRITICAL(message);                                              \
         ZEN_THROW("assertion failed: " #condition);                            \

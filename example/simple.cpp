@@ -32,5 +32,5 @@ int main()
     InArchive iar{JsonDeserializer{ss}};
     iar(make_nvp("john", person_out));
 
-    ZEN_EUNSURE(person_in == person_out)
+    ZEN_ENSURE(person_in == person_out)
 }

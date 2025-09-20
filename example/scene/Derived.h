@@ -23,9 +23,9 @@ public:
 
     ~DerivedNode();
 
-    void serialize(OutArchive &ar) const;
+    void save(OutArchive &ar) const;
 
-    void serialize(InArchive &ar);
+    void load(InArchive &ar);
 
     void format(fmt::format_context &ctx) const override
     {
