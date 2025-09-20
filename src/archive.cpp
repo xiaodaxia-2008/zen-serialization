@@ -32,6 +32,7 @@ void ArchiveBase::RegisterClassName(const std::type_index &index,
 
 const std::string &ArchiveBase::GetClassName(const std::type_index &index)
 {
+    assert(g_type_names.contains(index));
     return g_type_names.at(index);
 }
 
@@ -44,6 +45,7 @@ void ArchiveBase::RegisterConstructor(const std::string &name,
 const std::function<void *()> &
 ArchiveBase::GetConstructor(const std::string &name)
 {
+    assert(g_constructors.contains(name));
     return g_constructors.at(name);
 }
 
@@ -64,12 +66,14 @@ void ArchiveBase::RegisterDeserializer(
 const std::function<void(void *, OutArchive &ar)> &
 ArchiveBase::GetSerializer(const std::string &name)
 {
+    assert(g_serializers.contains(name));
     return g_serializers.at(name);
 }
 
 const std::function<void(void *, InArchive &ar)> &
 ArchiveBase::GetDeserializer(const std::string &name)
 {
+    assert(g_deserializers.contains(name));
     return g_deserializers.at(name);
 }
 

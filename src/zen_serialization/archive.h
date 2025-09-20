@@ -41,9 +41,9 @@ struct NewObjectScope {
     NewObjectScope(TSerializer &ser)
         : serializer(ser), scope([&] {
               if constexpr (IsArray) {
-                  serializer.FinishObject();
-              } else {
                   serializer.FinishArray();
+              } else {
+                  serializer.FinishObject();
               }
           })
     {
@@ -64,11 +64,7 @@ class OutArchive : public ArchiveBase
 public:
     using TSerializer = OutSerializer;
 
-    template <typename _TSerializer>
-    OutArchive(std::in_place_type_t<_TSerializer> tag, std::ostream &stream)
-        : m_serializer(tag, stream)
-    {
-    }
+    static constexpr bool IsInput() { return false; }
 
     template <typename... Args>
     OutArchive(Args &&...args) : m_serializer(std::forward<Args>(args)...)
@@ -78,8 +74,6 @@ public:
     void Flush() { m_serializer.Flush(); }
 
     bool IsBinary() const { return m_serializer.IsBinary(); }
-
-    static constexpr bool IsInput() { return false; }
 
     void operator()(auto &&item1, auto &&...items)
     {
@@ -101,46 +95,27 @@ private:
     void process(const T &item)
     {
         constexpr bool is_range = std::ranges::range<T>;
-        if constexpr (requires(T t) { t.serialize(*this); }) {
+        if constexpr (std::is_arithmetic_v<T>) {
+            m_serializer(item);
+        } else if constexpr (std::is_enum_v<T>) {
+            m_serializer(std::to_underlying(item));
+        } else if constexpr (requires(T t) { t.serialize(*this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             const_cast<T &>(item).serialize(*this);
         } else if constexpr (requires(T t) { serialize(t, *this); }) {
             NewObjectScope<is_range, TSerializer> scope(m_serializer);
             serialize(const_cast<T &>(item), *this);
         } else {
-            static_assert(false, "Unsupported type, define free or member "
-                                 "save/serialize function");
+            static_assert(
+                false,
+                "Unsupported type, define free or member serialize function");
         }
-    }
-
-    template <typename T>
-        requires std::is_enum_v<T>
-    void process(const T &item)
-    {
-        process(static_cast<std::underlying_type_t<T>>(item));
-    }
-
-    template <typename T>
-        requires std::is_arithmetic_v<T>
-    void process(const T &item)
-    {
-        m_serializer(item);
     }
 
     template <typename T>
     void process(const BaseClass<T> &item)
     {
         process(*item.ptr);
-    }
-
-    template <typename T>
-    void process(const std::optional<T> &item)
-    {
-        NewObjectScope<false, TSerializer> scope(m_serializer);
-        process(make_nvp("has_value", item.has_value()));
-        if (item.has_value()) {
-            process(make_nvp("value", *item));
-        }
     }
 
     void process(const RangeSize &item) { m_serializer(item.size); }
@@ -240,11 +215,7 @@ class InArchive : public ArchiveBase
 public:
     using TSerializer = InDeserializer;
 
-    template <typename _TSerializer>
-    InArchive(std::in_place_type_t<_TSerializer> tag, std::istream &stream)
-        : m_serializer(tag, stream)
-    {
-    }
+    static constexpr bool IsInput() { return true; }
 
     template <typename... Args>
     InArchive(Args &&...args) : m_serializer(std::forward<Args>(args)...)
@@ -252,8 +223,6 @@ public:
     }
 
     bool IsBinary() const { return m_serializer.IsBinary(); }
-
-    static constexpr bool IsInput() { return true; }
 
     void operator()(auto &&item1, auto &&...items)
     {
@@ -314,18 +283,6 @@ private:
     void process(BaseClass<T> &item)
     {
         process(const_cast<T &>(*item.ptr));
-    }
-
-    template <typename T>
-    void process(std::optional<T> &item)
-    {
-        NewObjectScope<false, TSerializer> scope(m_serializer);
-        bool has_value;
-        process(make_nvp("has_value", has_value));
-        if (has_value) {
-            item.emplace();
-            process(make_nvp("value", *item));
-        }
     }
 
     template <std::ranges::range Rng>
@@ -535,6 +492,21 @@ template <typename TArchive>
 inline void serialize(std::monostate &, TArchive &ar)
 {
 }
+
+template <typename T, typename TArchive>
+void serialize(std::optional<T> &item, TArchive &ar)
+{
+    bool has_value = item.has_value();
+    ar(make_nvp("has_value", has_value));
+    if (has_value) {
+        if constexpr (ar.IsInput()) {
+            // construct item before serialize
+            item.emplace();
+        }
+        ar(make_nvp("value", *item));
+    }
+}
+
 } // namespace zen
 
 //// stack serialization ///////
@@ -590,36 +562,18 @@ void serialize(S &s, InArchive &ar)
 
 namespace zen
 {
-template <typename T1, typename T2>
-void serialize(const std::pair<T1, T2> &pair, OutArchive &ar)
+
+/// serialization for pair
+template <typename T1, typename T2, typename TArchive>
+void serialize(std::pair<T1, T2> &pair, TArchive &ar)
 {
     ar(make_nvp("first", pair.first), make_nvp("second", pair.second));
 }
 
-template <typename T1, typename T2>
-void serialize(std::pair<T1, T2> &pair, InArchive &ar)
+/// serialization for tuple
+template <typename TArchive, typename... Args>
+void serialize(std::tuple<Args...> &tuple, TArchive &ar)
 {
-    ar(make_nvp("first", pair.first), make_nvp("second", pair.second));
-}
-} // namespace zen
-
-namespace zen
-{
-// serialization for tuple
-
-template <typename... Args>
-void serialize(const std::tuple<Args...> &tuple, OutArchive &ar)
-{
-    // std::apply([&](auto &&...elems) { ar(elems...); }, tuple);
-    [&]<std::size_t... I>(std::index_sequence<I...>) {
-        (ar(make_nvp(std::to_string(I), std::get<I>(tuple))), ...);
-    }(std::make_index_sequence<sizeof...(Args)>{});
-}
-
-template <typename... Args>
-void serialize(std::tuple<Args...> &tuple, InArchive &ar)
-{
-    // std::apply([&](auto &&...elems) { ar(elems...); }, tuple);
     [&]<std::size_t... I>(std::index_sequence<I...>) {
         (ar(make_nvp(std::to_string(I), std::get<I>(tuple))), ...);
     }(std::make_index_sequence<sizeof...(Args)>{});
