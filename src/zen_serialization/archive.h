@@ -493,6 +493,21 @@ inline void serialize(std::monostate &, TArchive &ar)
 {
 }
 
+template <typename TArchive>
+void serialize(std::filesystem::path &item, TArchive &ar)
+{
+    if constexpr (ar.IsInput()) {
+        std::string str;
+        ar(make_nvp("path", str));
+        std::u8string path{str.begin(), str.end()};
+        item = std::filesystem::path{path};
+    } else {
+        std::u8string path = item.u8string();
+        std::string str{path.begin(), path.end()};
+        ar(make_nvp("path", str));
+    }
+}
+
 template <typename T, typename TArchive>
 void serialize(std::optional<T> &item, TArchive &ar)
 {

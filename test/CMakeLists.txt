@@ -20,6 +20,7 @@ add_executable(tests
     # test_polymorphic_without_registration.cpp
     test_cycle_reference.cpp
     test_expected.cpp
+    test_filesystem_path.cpp
 )
 
 add_test(NAME StandardTest COMMAND tests)
