@@ -94,17 +94,18 @@ private:
     template <typename T>
     void process(const T &item)
     {
-        constexpr bool is_range = std::ranges::range<T>;
         if constexpr (std::is_arithmetic_v<T>) {
             m_serializer(item);
         } else if constexpr (std::is_enum_v<T>) {
             m_serializer(std::to_underlying(item));
         } else if constexpr (requires(T t) { t.serialize(*this); }) {
-            NewObjectScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<false, TSerializer> scope(m_serializer);
             const_cast<T &>(item).serialize(*this);
         } else if constexpr (requires(T t) { serialize(t, *this); }) {
-            NewObjectScope<is_range, TSerializer> scope(m_serializer);
+            NewObjectScope<false, TSerializer> scope(m_serializer);
             serialize(const_cast<T &>(item), *this);
+        } else if constexpr (std::ranges::range<T>) {
+            processRange(item);
         } else {
             static_assert(
                 false,
@@ -123,7 +124,7 @@ private:
     void process(const std::string &item) { m_serializer(item); }
 
     template <std::ranges::range Rng>
-    void process(const Rng &items)
+    void processRange(const Rng &items)
     {
         using T = std::ranges::range_value_t<Rng>;
         constexpr bool save_binary =

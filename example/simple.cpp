@@ -19,18 +19,17 @@ int main()
 {
     using namespace zen;
 
-    Person person_in{.name = "John", .age = 40, .weight = 80.8};
+    Person value_in{.name = "John", .age = 40, .weight = 80.8}, value_out;
 
     std::stringstream ss;
     OutArchive oar{JsonSerializer(ss)};
-    oar(make_nvp("john", person_in));
+    oar(make_nvp("value", value_in));
     oar.Flush();
 
     SPDLOG_INFO("Serialized: {}", ss.str());
 
-    Person person_out;
     InArchive iar{JsonDeserializer{ss}};
-    iar(make_nvp("john", person_out));
+    iar(make_nvp("value", value_out));
 
-    ZEN_ENSURE(person_in == person_out)
+    ZEN_ENSURE(value_in == value_out)
 }
