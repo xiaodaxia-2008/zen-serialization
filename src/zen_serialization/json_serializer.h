@@ -82,7 +82,7 @@ public:
 
     void FinishArray() { FinishObject(); }
 
-    void operator()(const RangeSize &size)
+    void operator()([[maybe_unused]] const RangeSize &size)
     {
         // it's not necessary to serialize the size with json format
     }
