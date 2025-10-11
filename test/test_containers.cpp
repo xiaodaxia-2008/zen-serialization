@@ -62,7 +62,7 @@ TEST_CASE("containers", "[array][binary]")
 }
 
 template <typename TOut, typename TIn, template <typename...> typename TMap>
-void test_map()
+void test_aggregate()
 {
     std::string name = "map";
     using T = TMap<std::string, int>;
@@ -86,42 +86,42 @@ void test_map()
 
 TEST_CASE("containers", "[map][json]")
 {
-    test_map<JsonSerializer, JsonDeserializer, std::map>();
+    test_aggregate<JsonSerializer, JsonDeserializer, std::map>();
 }
 
 TEST_CASE("containers", "[map][binary]")
 {
-    test_map<BinarySerializer, BinaryDeserializer, std::map>();
+    test_aggregate<BinarySerializer, BinaryDeserializer, std::map>();
 }
 
 TEST_CASE("containers", "[unordered_map][json]")
 {
-    test_map<JsonSerializer, JsonDeserializer, std::unordered_map>();
+    test_aggregate<JsonSerializer, JsonDeserializer, std::unordered_map>();
 }
 
 TEST_CASE("containers", "[unordered_map][binary]")
 {
-    test_map<BinarySerializer, BinaryDeserializer, std::unordered_map>();
+    test_aggregate<BinarySerializer, BinaryDeserializer, std::unordered_map>();
 }
 
 TEST_CASE("containers", "[multimap][json]")
 {
-    test_map<JsonSerializer, JsonDeserializer, std::multimap>();
+    test_aggregate<JsonSerializer, JsonDeserializer, std::multimap>();
 }
 
 TEST_CASE("containers", "[multimap][binary]")
 {
-    test_map<BinarySerializer, BinaryDeserializer, std::multimap>();
+    test_aggregate<BinarySerializer, BinaryDeserializer, std::multimap>();
 }
 
 TEST_CASE("containers", "[unordered_multimap][json]")
 {
-    test_map<JsonSerializer, JsonDeserializer, std::unordered_multimap>();
+    test_aggregate<JsonSerializer, JsonDeserializer, std::unordered_multimap>();
 }
 
 TEST_CASE("containers", "[unordered_multimap][binary]")
 {
-    test_map<BinarySerializer, BinaryDeserializer, std::unordered_multimap>();
+    test_aggregate<BinarySerializer, BinaryDeserializer, std::unordered_multimap>();
 }
 
 template <typename TOut, typename TIn, template <typename...> typename TRng>

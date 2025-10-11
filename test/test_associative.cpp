@@ -5,7 +5,7 @@
 using namespace zen;
 
 template <typename TOut, typename TIn>
-void test_map()
+void test_aggregate()
 {
     std::set<std::string> set = {"a", "b", "c"};
     auto &v = *set.begin();
@@ -27,6 +27,6 @@ void test_map()
 
 TEST_CASE("associative", "[map]")
 {
-    test_map<JsonSerializer, JsonDeserializer>();
-    test_map<BinarySerializer, BinaryDeserializer>();
+    test_aggregate<JsonSerializer, JsonDeserializer>();
+    test_aggregate<BinarySerializer, BinaryDeserializer>();
 }

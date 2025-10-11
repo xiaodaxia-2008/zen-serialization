@@ -14,6 +14,7 @@ target_sources(zen_serialization
     zen_serialization/json_serializer.h
     zen_serialization/range_size.h
     zen_serialization/serializer.h
+    zen_serialization/aggregate.h
 )
 
 target_link_libraries(zen_serialization

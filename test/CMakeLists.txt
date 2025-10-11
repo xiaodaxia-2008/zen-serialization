@@ -21,6 +21,7 @@ add_executable(tests
     test_cycle_reference.cpp
     test_expected.cpp
     test_filesystem_path.cpp
+    test_aggregate.cpp
 )
 
 add_test(NAME StandardTest COMMAND tests)

@@ -13,6 +13,7 @@
 #include <zen_serialization/json_serializer.h>
 #include <zen_serialization/range_size.h>
 #include <zen_serialization/serializer.h>
+#include <zen_serialization/aggregate.h>
 
 namespace zen
 {
