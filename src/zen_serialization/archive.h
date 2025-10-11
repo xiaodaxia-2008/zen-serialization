@@ -130,13 +130,7 @@ private:
         constexpr bool save_binary =
             std::ranges::contiguous_range<Rng> && std::is_arithmetic_v<T>;
 
-        std::size_t n;
-        if constexpr (std::ranges::sized_range<Rng>) {
-            n = std::ranges::size(items);
-        } else {
-            n = std::distance(std::ranges::begin(items),
-                              std::ranges::end(items));
-        }
+        std::size_t n = std::ranges::distance(items);
 
         m_serializer(RangeSize(n));
         if constexpr (save_binary) {
